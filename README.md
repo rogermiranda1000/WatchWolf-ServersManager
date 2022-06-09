@@ -6,4 +6,4 @@ The ServersManager is responsable of implementing WatchWolf ServersManager's pro
 ## Dependencies
 
 - [Docker](https://www.docker.com/get-started/)
-- Ubuntu Docker image: `docker pull ubuntu`
+- Ubuntu with Java Docker image: `docker pull openjdk:8`, `docker pull openjdk:16`, `docker pull openjdk:17`
