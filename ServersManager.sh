@@ -16,6 +16,10 @@ function setup_server {
 	echo "eula=true" > "$uuid/eula.txt" # eula
 	echo -e "white-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
+	# TODO copy worlds
+	# TODO copy config files
+	# TODO copy plugins
+	# TODO send communication port
 	
 	echo "$uuid" # return the directory path
 	return 0 # all ok
@@ -40,18 +44,24 @@ function get_java_version {
 memory_limit="4g"
 cpu="4"
 
+if [ -z "$1" ] || [ -z "$2" ]; then
+	exit 1 # argumens needed
+fi
+
 # MC configuration
-mc_version="1.17.1" #"1.12.2"
-server_type="Spigot"
-port="8001"
+server_type="$1"
+mc_version="$2"
+port="8001" # TODO change
 get_java_version "$mc_version"
-java="$?"
+java_version="$?"
 
 path=`setup_server "$server_type" "$mc_version"`
 if [ $? -eq 0 ]; then
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java" <<< "$cmd"
+	sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd"
+	# TODO read errors
 	rm -rf "$path" # remove the server once finished
 else
 	echo "Error"
+	exit 1
 fi
