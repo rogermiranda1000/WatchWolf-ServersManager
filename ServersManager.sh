@@ -2,6 +2,8 @@
 
 # @param server_type
 # @param server_version
+# @param requestee_ip
+# @param use_port
 function setup_server {
 	if [ `ls -d server-types/*/ | grep -c -E "^server-types/$1/$"` -eq 0 ]; then
 		return 1 # unimplemented server type
@@ -19,12 +21,13 @@ function setup_server {
 	# TODO copy worlds
 	# TODO copy config files
 	
-	mkdir "$uuid/plugins"
 	# TODO copy plugins
 	
-	# copy WatchWolf-Server plugin
+	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
 	cp "usual-plugins/$watchwolf_server" "$uuid/plugins/$watchwolf_server"
+	mkdir "$uuid/plugins/WatchWolf"
+	echo -e "target-ip:$3\nuse-port:$4" > "$uuid/plugins/WatchWolf/config.yml"
 	
 	# TODO send communication port
 	
@@ -58,16 +61,25 @@ fi
 # MC configuration
 server_type="$1"
 mc_version="$2"
+request_ip="$3"
 port="8001" # TODO change
 get_java_version "$mc_version"
 java_version="$?"
 
-path=`setup_server "$server_type" "$mc_version"`
+path=`setup_server "$server_type" "$mc_version" "$request_ip" $(($port + 1))`
 if [ $? -eq 0 ]; then
+	# send IP
+	ip=`hostname -I | sed 's/ //g'`
+	echo "$ip:$port" # print the trimmed ip and port
+	
+	# error FD
+	fd=`mktemp -u`
+	mkfifo -m 600 "$fd"
+	echo "$fd" # send the FD
+	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd"
-	# TODO read errors
-	rm -rf "$path" # remove the server once finished
+	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd"; rm -rf "$path"; rm -f "$fd"; } 1>/dev/null 2>"$fd" & disown # start the server on docker, but remove non-error messages; then remove it
+	# TODO removing the fifo here will stuck the Connector loop?
 else
 	echo "Error"
 	exit 1

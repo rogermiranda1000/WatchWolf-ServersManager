@@ -44,8 +44,15 @@ case $type in
 		readArray # TODO config
 		
 		if [ $err -eq 0 ]; then
-			echo "$mc_type - $mc_version"
-			./ServersManager.sh "$mc_type" "$mc_version"
+			#echo "$mc_type - $mc_version"
+			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # IP & fifo
+			echo "$data" | cut -d$'\n' -f1 # TODO send the version
+			
+			while true; do
+				if read msg; then
+					echo "> $msg"
+				fi
+			done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
 		else
 			echo "Received Start server request, but arguments were invalid"
 		fi
