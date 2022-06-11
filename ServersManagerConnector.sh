@@ -1,14 +1,6 @@
 #!/bin/bash
 
-function readOneByte {
-	data=`od -N1 -An -vtu1`
-	if [ -z "$data" ]; then
-		return 1 # not enought data
-	fi
-	
-	echo -n "$data"
-	return 0
-}
+source ./ConnectorHelper.sh
 
 # @param MSB bit number
 # @param LSB bit number
@@ -38,6 +30,28 @@ if [ $err -ne 0 ]; then
 fi
 
 type=$(( $type + (`extract_bits 3 0 $first` << 8) ))
-echo "($SOCAT_PEERADDR:$SOCAT_PEERPORT) $type"
-
-#./ServersManager.sh "Spigot" "1.17.1"
+case $type in
+	1)
+		#echo "($SOCAT_PEERADDR:$SOCAT_PEERPORT)"
+		readArray # TODO maps
+		readArray # TODO plugins
+		
+		mc_type=`readString`
+		err=$?
+		mc_version=`readString`
+		err=$(($err | $?))
+		
+		readArray # TODO config
+		
+		if [ $err -eq 0 ]; then
+			echo "$mc_type - $mc_version"
+			./ServersManager.sh "$mc_type" "$mc_version"
+		else
+			echo "Received Start server request, but arguments were invalid"
+		fi
+		;;
+		
+	*)
+		echo "Uknown request ($type)"
+		;;
+esac
