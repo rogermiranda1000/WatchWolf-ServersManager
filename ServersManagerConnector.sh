@@ -1,13 +1,12 @@
 #!/bin/bash
 
 function readOneByte {
-	read -r -d '' -N 1 data	# don't use scape characters, don't wait for \n to end , and read 1 byte (without waiting if none)
-	err=$?
-	if [ "$err" -ne 0 ]; then
-		return "$err" # error (not enought data?)
+	data=`od -N1 -An -vtu1`
+	if [ -z "$data" ]; then
+		return 1 # not enought data
 	fi
 	
-	echo -n "$data" | hd | awk '{ print strtonum("0x"$2) }' # read data as "integer"
+	echo -n "$data"
 	return 0
 }
 
@@ -24,8 +23,21 @@ function extract_bits {
 
 first=`readOneByte`
 err=$?
-extract_bits 7 4 $first
-extract_bits 3 0 $first
-echo "($SOCAT_PEERADDR:$SOCAT_PEERPORT) $err > $first"
+if [ $err -ne 0 ]; then
+	exit 1
+fi
+
+if [ `extract_bits 7 4 $first` -ne 0 ]; then
+	exit 2 # return type set, or destiny not ServersManager
+fi
+
+type=`readOneByte`
+err=$?
+if [ $err -ne 0 ]; then
+	exit 1
+fi
+
+type=$(( $type + (`extract_bits 3 0 $first` << 8) ))
+echo "($SOCAT_PEERADDR:$SOCAT_PEERPORT) $type"
 
 #./ServersManager.sh "Spigot" "1.17.1"
