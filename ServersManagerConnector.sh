@@ -50,11 +50,11 @@ case $type in
 			echo -n -e '\x10\x01' # ServersManager response header
 			sendString "$ip"
 			
-			#while true; do
-				#if read msg; then
-				#	echo "> $msg" # TODO send errors
-				#fi
-			#done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
+			while true; do
+				if read msg; then
+					echo "> $msg" >&2 # TODO send errors (remove FD redirect)
+				fi
+			done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
 		else
 			echo "Received Start server request, but arguments were invalid" >&2
 		fi
