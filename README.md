@@ -9,7 +9,7 @@ The ServersManager is responsable of implementing WatchWolf ServersManager's pro
 - [Docker](https://www.docker.com/get-started/)
 - Ubuntu with Java Docker image: `docker pull openjdk:8`, `docker pull openjdk:16`, `docker pull openjdk:17`
 - socat: `sudo apt install socat`
-- Link the file with socat (`sudo socat -u tcp-l:8000,pktinfo,fork exec:<ServersManagerConnector path>`) at startup (using services or rc.local)
+- Link the file with socat (`sudo socat tcp-l:8000,pktinfo,fork system:<ServersManagerConnector path>`) at startup (using services or rc.local)
 
 
 ## WSL Firewall

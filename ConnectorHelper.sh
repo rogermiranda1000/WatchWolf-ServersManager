@@ -46,3 +46,19 @@ function readString {
 	
 	return 0
 }
+
+# @param string
+function sendString {
+	if [ $# -ne 1 ]; then
+		return 1 # string not passed
+	fi
+	
+	# send size
+	echo "${#1}" | awk '{printf "%c", and($1,0xFF)}' # LSB size
+	echo "${#1}" | awk '{printf "%c", and(rshift($1, 8),0xFF)}' # MSB size
+	
+	# send array
+	echo -n "$1"
+	
+	return 0
+}

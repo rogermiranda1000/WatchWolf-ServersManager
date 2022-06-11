@@ -32,7 +32,6 @@ fi
 type=$(( $type + (`extract_bits 3 0 $first` << 8) ))
 case $type in
 	1)
-		#echo "($SOCAT_PEERADDR:$SOCAT_PEERPORT)"
 		readArray # TODO maps
 		readArray # TODO plugins
 		
@@ -44,21 +43,24 @@ case $type in
 		readArray # TODO config
 		
 		if [ $err -eq 0 ]; then
-			#echo "$mc_type - $mc_version"
 			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # IP & fifo
-			echo "$data" | cut -d$'\n' -f1 # TODO send the version
 			
-			while true; do
-				if read msg; then
-					echo "> $msg"
-				fi
-			done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
+			# send IP
+			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`
+			echo -n -e '\x10\x01' # ServersManager response header
+			sendString "$ip"
+			
+			#while true; do
+				#if read msg; then
+				#	echo "> $msg" # TODO send errors
+				#fi
+			#done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
 		else
-			echo "Received Start server request, but arguments were invalid"
+			echo "Received Start server request, but arguments were invalid" >&2
 		fi
 		;;
 		
 	*)
-		echo "Uknown request ($type)"
+		echo "Uknown request ($type)" >&2
 		;;
 esac
