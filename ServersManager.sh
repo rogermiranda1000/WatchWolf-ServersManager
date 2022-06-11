@@ -18,7 +18,14 @@ function setup_server {
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	# TODO copy worlds
 	# TODO copy config files
+	
+	mkdir "$uuid/plugins"
 	# TODO copy plugins
+	
+	# copy WatchWolf-Server plugin
+	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
+	cp "usual-plugins/$watchwolf_server" "$uuid/plugins/$watchwolf_server"
+	
 	# TODO send communication port
 	
 	echo "$uuid" # return the directory path
