@@ -69,7 +69,7 @@ java_version="$?"
 path=`setup_server "$server_type" "$mc_version" "$request_ip" $(($port + 1))`
 if [ $? -eq 0 ]; then
 	# send IP
-	ip="127.0.0.1" # we're using docker; if not we should run `hostname -I | sed 's/ //g'`
+	ip="0.0.0.0" # we're using docker; if not we should run `hostname -I | sed 's/ //g'`
 	echo "$ip:$port" # print the trimmed ip and port
 	
 	# error FD
