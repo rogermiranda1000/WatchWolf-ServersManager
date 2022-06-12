@@ -19,10 +19,6 @@ if [ $err -ne 0 ]; then
 	exit 1
 fi
 
-if [ `extract_bits 7 4 $first` -ne 0 ]; then
-	exit 2 # return type set, or destiny not ServersManager
-fi
-
 type=`readOneByte`
 err=$?
 if [ $err -ne 0 ]; then
@@ -30,6 +26,35 @@ if [ $err -ne 0 ]; then
 fi
 
 type=$(( $type + (`extract_bits 3 0 $first` << 8) ))
+
+if [ `extract_bits 7 4 $first` -eq 3 ]; then
+	# return from Server; it can only be a server started response
+	if [ $type -ne 1 ]; then
+		exit 2 # unimplemented
+	fi
+	
+	type=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		exit 1
+	elif [ $type -ne 0 ]; then
+		exit 2 # unimplemented
+	fi
+	type=`readOneByte`
+	if [ $err -ne 0 ]; then
+		exit 1
+	elif [ $type -ne 2 ]; then
+		exit 2 # unimplemented
+	fi
+	
+	# server started -> redirect to the tester
+	echo "started" >&2
+	
+	exit 0
+elif [ `extract_bits 7 4 $first` -ne 0 ]; then
+	exit 2 # return type set, or destiny not ServersManager
+fi
+
 case $type in
 	1)
 		readArray # TODO maps
