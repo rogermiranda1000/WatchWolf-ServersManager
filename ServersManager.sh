@@ -27,7 +27,7 @@ function setup_server {
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
 	cp "usual-plugins/$watchwolf_server" "$uuid/plugins/$watchwolf_server"
 	mkdir "$uuid/plugins/WatchWolf"
-	echo -e "target-ip:$3\nuse-port:$4" > "$uuid/plugins/WatchWolf/config.yml"
+	echo -e "target-ip: $3\nuse-port: $4" > "$uuid/plugins/WatchWolf/config.yml"
 	
 	# TODO send communication port
 	
@@ -69,7 +69,7 @@ java_version="$?"
 path=`setup_server "$server_type" "$mc_version" "$request_ip" $(($port + 1))`
 if [ $? -eq 0 ]; then
 	# send IP
-	ip=`hostname -I | sed 's/ //g'`
+	ip="127.0.0.1" # we're using docker; if not we should run `hostname -I | sed 's/ //g'`
 	echo "$ip:$port" # print the trimmed ip and port
 	
 	# error FD
@@ -78,7 +78,7 @@ if [ $? -eq 0 ]; then
 	echo "$fd" # send the FD
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd"; rm -rf "$path"; rm -f "$fd"; } 1>/dev/null 2>"$fd" & disown # start the server on docker, but remove non-error messages; then remove it
+	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}" -p "$port:25565" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd"; rm -rf "$path"; rm -f "$fd"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	# TODO removing the fifo here will stuck the Connector loop?
 else
 	echo "Error"
