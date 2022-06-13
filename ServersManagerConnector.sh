@@ -48,7 +48,12 @@ if [ `extract_bits 7 4 $first` -eq 3 ]; then
 	fi
 	
 	# server started -> redirect to the tester
-	echo "started" >&2
+	token=`readString`
+	if [ `echo "$token" | grep -c -P '^(\w|-)+$'` -ne 1 ]; then
+		exit 1 # not a token
+	fi
+	
+	echo "started" > "/tmp/tmp.${token}"
 	
 	exit 0
 elif [ `extract_bits 7 4 $first` -ne 0 ]; then
@@ -68,18 +73,28 @@ case $type in
 		readArray # TODO config
 		
 		if [ $err -eq 0 ]; then
-			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # IP & fifo
+			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # @return IP & fifo msg & fifo socket
 			
 			# send IP
 			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`
 			echo -n -e '\x10\x01' # ServersManager response header
 			sendString "$ip"
 			
+			msg_fifo=`echo "$data" | cut -d$'\n' -f2`
+			socket_fifo=`echo "$data" | cut -d$'\n' -f3`
 			while true; do
-				if read msg; then
-					echo "> $msg" >&2 # TODO send errors (remove FD redirect)
-				fi
-			done <`echo "$data" | cut -d$'\n' -f2` # read the fifo
+				while
+						IFS= read -t 1 -r msg; statusA=$?
+						IFS= read -t 1 -u 3 -r socket; statusB=$?
+						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
+					if [ ! -z "$msg" ]; then
+						echo "> $msg" >&2 # TODO send errors (remove FD redirect)
+					fi
+					if [ ! -z "$socket" ]; then
+						echo ">> $socket" >&2 # TODO send
+					fi
+				done <"$msg_fifo" 3<"$socket_fifo"
+			done
 		else
 			echo "Received Start server request, but arguments were invalid" >&2
 		fi
