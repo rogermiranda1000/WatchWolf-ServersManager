@@ -82,26 +82,35 @@ case $type in
 			
 			msg_fifo=`echo "$data" | cut -d$'\n' -f2`
 			socket_fifo=`echo "$data" | cut -d$'\n' -f3`
-			exec 3<>"$socket_fifo" # to not block the read
+			# to not block the read
+			exec 3<>"$msg_fifo"
+			exec 4<>"$socket_fifo"
 			while true; do
 				while
-						IFS= read -t 0.1 -r msg; statusA=$?
-						IFS= read -t 0.1 -u 3 -r socket; statusB=$?
+						IFS= read -t 0.1 -u 3 -r msg; statusA=$?
+						IFS= read -t 0.1 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
 					if [ ! -z "$msg" ]; then
 						echo "> $msg" >&2 # TODO send errors (remove FD redirect)
 					fi
 					if [ ! -z "$socket" ]; then
 						if [ "$socket" == "end" ]; then
+							# end of session
+							# close FD
+							exec 3>&-
+							exec 4>&-
 							rm -f "$msg_fifo"
-							exec 3>&- # close FD
 							rm -f "$socket_fifo";
 							exit 0
+						elif [ "$socket" == "started" ]; then
+							# server started
+							echo "-" | awk '{printf "%c%c", 0x10, 0x02}' # server started notification
 						else
-							echo ">> $socket" >&2 # TODO send
+							echo "Uknown request from socket fifo: $socket" >&2
 						fi
 					fi
-				done <"$msg_fifo"
+				done
+				sleep 1
 			done
 		else
 			echo "Received Start server request, but arguments were invalid" >&2
