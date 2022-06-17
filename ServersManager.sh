@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./SpigotBuilder.sh
+
 # @param server_type
 # @param server_version
 # @param requestee_ip
@@ -50,6 +52,12 @@ function get_java_version {
 			;;
 	esac
 }
+
+# launch auto-updater
+getAllVersions |
+while read version; do
+	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null &
+done
 
 # Hard limits
 memory_limit="4g"
