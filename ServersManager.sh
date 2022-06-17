@@ -38,26 +38,11 @@ function setup_server {
 	return 0 # all ok
 }
 
-# @param server_version
-function get_java_version {
-	case `echo "$1" | grep -o -P '^\d+\.\d+'` in # get the first 2 numbers
-		"1.18" )
-			return 17
-			;;
-		"1.17" )
-			return 16
-			;;
-		* ) # previous to 1.17
-			return 8
-			;;
-	esac
-}
-
 # launch auto-updater
-getAllVersions |
-while read version; do
-	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null &
-done
+#getAllVersions |
+#while read version; do
+#	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
+#done
 
 # Hard limits
 memory_limit="4g"
@@ -97,7 +82,7 @@ if [ $? -eq 0 ]; then
 	echo "$fd_socket"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:25565" -p "$((port+1)):$((port+1))" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd"; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:25565" -p "$((port+1)):$((port+1))" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	# TODO removing the fifo here will stuck the Connector loop?
 else
 	echo "Error"
