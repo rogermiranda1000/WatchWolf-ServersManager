@@ -10,27 +10,31 @@ function readOneByte {
 	return 0
 }
 
-function readArray {
+function readShort {
 	msb=`readOneByte`
 	err=$?
 	lsb=`readOneByte`
 	err=$(($err | $?))
+	echo $((($msb << 8) | $lsb))
+	return $err
+}
+
+function readArray {
+	arr_size=`readShort`
+	err=$?
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
 	
-	arr_size=$((($msb << 8) | $lsb))
-	if [ $arr_size -gt 0 ]; then
-		for (( i=0; i < $arr_size; i++ )); do
-			data=`readOneByte`
-			err=$?
-			if [ $err -ne 0 ]; then
-				return 2
-			fi
-			
-			echo -n "$data "
-		done
-	fi
+	for (( i=0; i < $arr_size; i++ )); do
+		data=`readOneByte`
+		err=$?
+		if [ $err -ne 0 ]; then
+			return 2
+		fi
+		
+		echo -n "$data "
+	done
 	
 	return 0
 }

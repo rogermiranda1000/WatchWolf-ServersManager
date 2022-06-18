@@ -1,6 +1,7 @@
 #!/bin/bash
 
 source ./SpigotBuilder.sh
+source ./ConnectorHelper.sh
 
 # @param server_type
 # @param server_version
@@ -24,7 +25,34 @@ function setup_server {
 	# TODO copy worlds
 	# TODO copy config files
 	
-	# TODO copy plugins
+	# copy plugins
+	arr_size=`readShort`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+	for (( i=0; i < $arr_size; i++ )); do
+		data=`readOneByte`
+		err=$?
+		if [ $err -ne 0 ]; then
+			return 2
+		fi
+		
+		if [ $data -eq 0 ]; then
+			# usual plugin
+			plugin=`readString`
+			err=$?
+			version=`readString`
+			err=$(($err | $?))
+			if [ $err -eq 0 ]; then
+				copy_usual_plugin "$uuid/plugins" "$plugin" "$version"
+			fi
+		else
+			# TODO other plugins
+			echo "Uknown plugin type ($data)" >&2
+			return 2
+		fi
+	done
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
@@ -32,10 +60,22 @@ function setup_server {
 	mkdir "$uuid/plugins/WatchWolf"
 	echo -e "target-ip: $3\nuse-port: $4\nreply: $5\nkey: $uuid" > "$uuid/plugins/WatchWolf/config.yml" # this will tell the plugin the TCP port and the IP that should request the commands, and also the IP to reply back to the ServerManager and the key to link the server to the transmission
 	
-	# TODO send communication port
-	
 	echo "$uuid" # return the directory path
 	return 0 # all ok
+}
+
+# @param path
+# @param plugin_name
+# @param plugin_version (if desired)
+function copy_usual_plugin {
+	version="$3"
+	if [ -z "$version" ]; then
+		version=".*"
+	fi
+	
+	# TODO discard uncompatible plugins
+	plugin=`ls usual-plugins | grep -P "^$2-$version-.*\.jar$" | sort -t - -k 2,2 --version-sort -r | head -1` # pick the desired plugin; if there's multiple options, pick the one with the higher version
+	cp "usual-plugins/$plugin" "$1"
 }
 
 # launch auto-updater

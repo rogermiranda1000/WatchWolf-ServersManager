@@ -62,18 +62,17 @@ fi
 
 case $type in
 	1)
-		readArray # TODO maps
-		readArray # TODO plugins
-		
 		mc_type=`readString`
 		err=$?
 		mc_version=`readString`
 		err=$(($err | $?))
 		
-		readArray # TODO config
-		
 		if [ $err -eq 0 ]; then
 			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # @return IP & fifo msg & fifo socket
+		
+			# plugins readed on ServersManager.sh
+			readArray # TODO maps
+			readArray # TODO config
 			
 			# send IP
 			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`
