@@ -84,13 +84,36 @@ case $type in
 			# to not block the read
 			exec 3<>"$msg_fifo"
 			exec 4<>"$socket_fifo"
+			
+			error_log=""
+			
 			while true; do
 				while
 						IFS= read -t 0.1 -u 3 -r msg; statusA=$?
 						IFS= read -t 0.1 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
 					if [ ! -z "$msg" ]; then
-						echo "> $msg" >&2 # TODO send errors (remove FD redirect)
+						type=`echo "$msg" | grep -o -P '(?<=^\[\d{2}:\d{2}:\d{2} )((ERROR)|(INFO))(?=\]: )'`
+						if [ ! -z "$error_log" ] || [ "$type" == "ERROR" ]; then
+							# error
+							if [ ! -z "$error_log" ] && [ ! -z "$type" ]; then
+								# new line; send
+								echo -e "> $error_log" >&2
+								# TODO send
+								error_log="" # reset
+							else
+								# append
+								error_log="$error_log\n$msg"
+							fi
+							
+							if [ "$type" == "ERROR" ]; then
+								# the message was an error; we need to add it to the queue
+								error_log="$msg"
+							fi
+						else
+							# not an error; just log
+							echo "> $msg" >&2
+						fi
 					fi
 					if [ ! -z "$socket" ]; then
 						if [ "$socket" == "end" ]; then
