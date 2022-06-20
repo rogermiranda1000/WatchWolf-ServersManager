@@ -61,7 +61,7 @@ function sendString {
 	text=`echo -n "$1" | head -c 65535` # trim if >(2^16-1)
 	
 	# send size
-	echo "${#text}" | awk '{printf "%c%c", and(rshift(int($1), 8),0xFF), and(int($1),0xFF)}' # MSB size - LSB size
+	echo "${#text}" | LC_CTYPE=C awk '{printf "%c%c", and(rshift(int($1), 8),0xFF), and(int($1),0xFF)}' # MSB size - LSB size
 	
 	# send array
 	echo -n "$text"
