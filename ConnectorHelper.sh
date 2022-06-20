@@ -57,12 +57,14 @@ function sendString {
 		return 1 # string not passed
 	fi
 	
+	# | sed -z 's/\n/\\n/g' | sed -E -z 's/\\n((\s{2,})|(\t\s*))/\\n\\t/g' # also replace \n and \t
+	text=`echo -n "$1" | head -c 65535` # trim if >(2^16-1)
+	
 	# send size
-	echo "${#1}" | awk '{printf "%c", and(rshift($1, 8),0xFF)}' # MSB size
-	echo "${#1}" | awk '{printf "%c", and($1,0xFF)}' # LSB size
+	echo "${#text}" | awk '{printf "%c%c", and(rshift(int($1), 8),0xFF), and(int($1),0xFF)}' # MSB size - LSB size
 	
 	# send array
-	echo -n "$1"
+	echo -n "$text"
 	
 	return 0
 }

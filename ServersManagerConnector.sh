@@ -99,16 +99,16 @@ case $type in
 							if [ ! -z "$error_log" ] && [ ! -z "$type" ]; then
 								# new line; send
 								echo -e "> $error_log" >&2
-								# TODO send
+								echo -n -e '\x10\x03'; sendString "$error_log" # error notification
 								error_log="" # reset
 							else
 								# append
-								error_log="$error_log\n$msg"
+								error_log="$error_log\n${msg//$'\t'/'\t'}"
 							fi
 							
 							if [ "$type" == "ERROR" ]; then
-								# the message was an error; we need to add it to the queue
-								error_log="$msg"
+								# the message was an error; we need to add it to the (already emptied) queue
+								error_log="${msg:18}" # remove the timestamp
 							fi
 						else
 							# not an error; just log
@@ -126,7 +126,7 @@ case $type in
 							exit 0
 						elif [ "$socket" == "started" ]; then
 							# server started
-							echo "-" | awk '{printf "%c%c", 0x10, 0x02}' # server started notification
+							echo -n -e '\x10\x02' # server started notification
 						else
 							echo "Uknown request from socket fifo: $socket" >&2
 						fi

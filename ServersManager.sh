@@ -123,7 +123,6 @@ if [ $? -eq 0 ]; then
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
 	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:25565" -p "$((port+1)):$((port+1))" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
-	# TODO removing the fifo here will stuck the Connector loop?
 else
 	echo "Error"
 	exit 1
