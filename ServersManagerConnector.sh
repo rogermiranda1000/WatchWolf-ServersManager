@@ -13,6 +13,8 @@ function extract_bits {
 	echo $(( ( $num & ( $mask << $lsb ) ) >> $lsb ))
 }
 
+USE_X=`case "$-" in *x*) echo "-x" ;; esac`
+
 first=`readOneByte`
 err=$?
 if [ $err -ne 0 ]; then
@@ -68,11 +70,12 @@ case $type in
 		err=$(($err | $?))
 		
 		if [ $err -eq 0 ]; then
-			data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # @return IP & fifo msg & fifo socket
-		
-			# plugins readed on ServersManager.sh
-			readArray # TODO maps
-			readArray # TODO config
+			if [ -z "$USE_X" ]; then
+				data=`./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # @return IP & fifo msg & fifo socket
+			else
+				data=`bash "$USE_X" ./ServersManager.sh "$mc_type" "$mc_version" "$SOCAT_PEERADDR"` # @return IP & fifo msg & fifo socket
+			fi
+			# ServersManager already reads the rest of the packet
 			
 			# send IP
 			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`

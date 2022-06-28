@@ -3,6 +3,7 @@
 source ./SpigotBuilder.sh
 source ./ConnectorHelper.sh
 
+# (indirect param) packet containing the plugins, worlds and config files
 # @param server_type
 # @param server_version
 # @param requestee_ip
@@ -22,8 +23,6 @@ function setup_server {
 	echo "eula=true" > "$uuid/eula.txt" # eula
 	echo -e "white-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
-	# TODO copy worlds
-	# TODO copy config files
 	
 	# copy plugins
 	arr_size=`readShort`
@@ -45,7 +44,11 @@ function setup_server {
 			version=`readString`
 			err=$(($err | $?))
 			if [ $err -eq 0 ]; then
-				copy_usual_plugin "$uuid/plugins" "$plugin" "$version"
+				copy_usual_plugin "$uuid/plugins" "$2" "$plugin" "$version"
+				err=$?
+				if [ $err -ne 0 ]; then
+					echo "Error finding $plugin" >&2
+				fi
 			fi
 		else
 			# TODO other plugins
@@ -53,6 +56,11 @@ function setup_server {
 			return 2
 		fi
 	done
+	
+	# TODO copy worlds
+	readArray
+	# TODO copy config files
+	readArray
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
@@ -64,18 +72,37 @@ function setup_server {
 	return 0 # all ok
 }
 
+# @param plugin_name
+# @param mc_version
+function get_compatible_plugins {
+	while IFS= read -r plugin; do
+		version=`echo "$plugin" | awk -v version="$2" -F'-' '{ print $3 "\n" substr($4, 0, length($4)-4) "\n" version }' | sort --version-sort | sed -n 2p` # sort min_version, max_version, and current_version and pick the medium value (that should be current_version)
+		if [ "$version" == "$2" ]; then
+			echo "$plugin" # compatible plugin; return
+		fi
+	done < <(ls usual-plugins | grep -P "^$1-.*\.jar$")
+}
+
 # @param path
+# @param mc_version
 # @param plugin_name
 # @param plugin_version (if desired)
 function copy_usual_plugin {
-	version="$3"
-	if [ -z "$version" ]; then
-		version=".*"
+	if [ $# -gt 3 ] && [ ! -z "$4" ]; then
+		# version specified
+		plugin=`ls usual-plugins | grep -P "^$3-$4-.*\.jar$"` # TODO check if disponible; TODO control injection on regex
+		cp "usual-plugins/$plugin" "$1"
+		return 0
 	fi
 	
 	# TODO discard uncompatible plugins
-	plugin=`ls usual-plugins | grep -P "^$2-$version-.*\.jar$" | sort -t - -k 2,2 --version-sort -r | head -1` # pick the desired plugin; if there's multiple options, pick the one with the higher version
+	plugin=`get_compatible_plugins "$3" "$2" | sort -t - -k 2,2 --version-sort -r | head -1` # pick the desired plugin; if there's multiple options, pick the one with the higher version
+	if [ -z "$plugin" ]; then
+		return 1 # compatible version (or plugin) not found
+	fi
+	
 	cp "usual-plugins/$plugin" "$1"
+	return 0
 }
 
 # launch auto-updater
