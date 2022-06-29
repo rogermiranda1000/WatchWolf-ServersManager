@@ -77,13 +77,15 @@ case $type in
 			fi
 			# ServersManager already reads the rest of the packet
 			
-			# send IP
 			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`
+			msg_fifo=`echo "$data" | cut -d$'\n' -f2`
+			socket_fifo=`echo "$data" | cut -d$'\n' -f3`
+			echo "Using MC server's IP $ip" >&2
+			
+			# send IP
 			echo -n -e '\x10\x01' # ServersManager response header
 			sendString "$ip"
 			
-			msg_fifo=`echo "$data" | cut -d$'\n' -f2`
-			socket_fifo=`echo "$data" | cut -d$'\n' -f3`
 			# to not block the read
 			exec 3<>"$msg_fifo"
 			exec 4<>"$socket_fifo"
@@ -120,15 +122,17 @@ case $type in
 					fi
 					if [ ! -z "$socket" ]; then
 						if [ "$socket" == "end" ]; then
-							# end of session
+							echo "End of session" >&2
+							
 							# close FD
 							exec 3>&-
 							exec 4>&-
 							rm -f "$msg_fifo"
 							rm -f "$socket_fifo";
+							
 							exit 0
 						elif [ "$socket" == "started" ]; then
-							# server started
+							echo "Server started" >&2
 							echo -n -e '\x10\x02' # server started notification
 						else
 							echo "Uknown request from socket fifo: $socket" >&2
