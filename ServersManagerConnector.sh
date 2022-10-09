@@ -94,8 +94,8 @@ case $type in
 			
 			while true; do
 				while
-						IFS= read -t 0.1 -u 3 -r msg; statusA=$?
-						IFS= read -t 0.1 -u 4 -r socket; statusB=$?
+						IFS= read -t 0.02 -u 3 -r msg; statusA=$?
+						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
 					if [ ! -z "$msg" ]; then
 						type=`echo "$msg" | grep -o -P '(?<=^\[\d{2}:\d{2}:\d{2} )((ERROR)|(INFO))(?=\]: )'`
