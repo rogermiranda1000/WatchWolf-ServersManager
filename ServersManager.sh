@@ -105,6 +105,16 @@ function copy_usual_plugin {
 	return 0
 }
 
+# @return Returns the unused port closer to n=0 using 8001+n*2
+function get_port {
+	port="8001"
+	while [`sudo netstat -tulpn | grep LISTEN | awk '{ print $4 }' | grep -E ":$port$" -c`]; do
+		port="$((port+2))"
+	done
+	
+	echo "$port"
+}
+
 # launch auto-updater
 #getAllVersions |
 #while read version; do
@@ -128,7 +138,7 @@ manager_ip=`echo "$manager_ip:$manager_port"`
 server_type="$1"
 mc_version="$2"
 request_ip="$3"
-port="8001" # TODO change
+port=`get_port`
 get_java_version "$mc_version"
 java_version="$?"
 
