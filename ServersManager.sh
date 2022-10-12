@@ -108,8 +108,8 @@ function copy_usual_plugin {
 # @return Returns the unused port closer to n=0 using 8001+n*2
 function get_port {
 	port="8001"
-	while [`sudo netstat -tulpn | grep LISTEN | awk '{ print $4 }' | grep -E ":$port$" -c`]; do
-		port="$((port+2))"
+	while [ `sudo netstat -tulpn | grep LISTEN | awk '{ print $4 }' | grep -E ":$port$" -c` -eq 1 ]; do
+		port=$((port+2))
 	done
 	
 	echo "$port"
@@ -139,10 +139,11 @@ server_type="$1"
 mc_version="$2"
 request_ip="$3"
 port=`get_port`
+socket_port=$((port+1))
 get_java_version "$mc_version"
 java_version="$?"
 
-path=`setup_server "$server_type" "$mc_version" "$request_ip" $(($port + 1)) "$manager_ip"`
+path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip"`
 # @return IP:port - error fifo path - socket fifo path
 if [ $? -eq 0 ]; then
 	# send IP
@@ -159,7 +160,7 @@ if [ $? -eq 0 ]; then
 	echo "$fd_socket"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$((port+1)):$((port+1))" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$socket_port:$socket_port" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 else
 	echo "Error"
 	exit 1
