@@ -9,9 +9,5 @@ The ServersManager is responsable of implementing WatchWolf ServersManager's pro
 - [Docker](https://www.docker.com/get-started/)
 - Ubuntu with Java Docker image: `docker pull openjdk:8`, `docker pull openjdk:16`, `docker pull openjdk:17`
 - socat with Docker image: `docker pull ubuntu`
-- Link the file with socat (you need to be in the directory that contains the folder WatchWolf-ServersManager):
-  `sudo docker run --privileged=true -i --rm --name ServersManager -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -v "$(pwd)/WatchWolf-ServersManager":/ServersManager:ro ubuntu:latest sh -c "cp -r /ServersManager/* ~/ ; cd ~/ ; chmod +x ServersManager.sh ServersManagerConnector.sh SpigotBuilder.sh ; apt-get update ; apt-get install -y socat docker.io gawk ; echo '-- ServersManager ready --' ; socat -d -d tcp-l:8000,pktinfo,keepalive,keepidle=10,keepintvl=10,keepcnt=100,ignoreeof,fork system:~/ServersManagerConnector.sh"`
-
-## WSL Firewall
-
-- According to [this issue](https://github.com/microsoft/WSL/issues/4585#issuecomment-610061194), you should un in your Windows powershell this command: `New-NetFirewallRule -DisplayName "WSL" -Direction Inbound  -InterfaceAlias "vEthernet (WSL)"  -Action Allow`.
+- Link the file with socat (you need to be in the WatchWolf-ServersManager directory):
+  `sudo docker run --privileged=true -i --rm --name ServersManager -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -v "$(pwd)":"$(pwd)" ubuntu:latest sh -c "cd $(pwd) ; chmod +x ServersManager.sh ServersManagerConnector.sh SpigotBuilder.sh ; apt-get update ; apt-get install -y socat docker.io gawk ; echo '-- ServersManager ready --' ; socat -d -d tcp-l:8000,pktinfo,keepalive,keepidle=10,keepintvl=10,keepcnt=100,ignoreeof,fork system:./ServersManagerConnector.sh"`
