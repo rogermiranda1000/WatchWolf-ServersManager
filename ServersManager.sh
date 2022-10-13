@@ -150,7 +150,7 @@ fi
 # reply
 manager_ip=`hostname -I | sed 's/ //g'` # change this IP to the ServerManager's one
 manager_port=8000 # change this IP to the ServerManager's one
-manager_ip=`echo "$manager_ip:$manager_port"`
+manager_ip="$manager_ip:$manager_port"
 
 # MC configuration
 server_type="$1"
