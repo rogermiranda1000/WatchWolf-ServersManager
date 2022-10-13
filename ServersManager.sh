@@ -105,11 +105,39 @@ function copy_usual_plugin {
 	return 0
 }
 
+function get_docker_ports {
+	# It generates an output like this:
+	# PORTS
+	# 0.0.0.0:8000->8000/tcp
+	# 0.0.0.0:8001->8001/tcp, 0.0.0.0:8002->8002/tcp
+	# 0.0.0.0:8001-8002->8001-8002/tcp
+	docker container ls --format "table {{.Ports}}" -a | tail -n +2 | while read ports; do
+		line=`echo "$ports" | awk '{ for(i=1;i<=NF;i++) print $i }'`
+		# extract the ports from one line
+		echo "$line" | grep -o -P '(?<=:)\d+(?=-)' # also included (?=->)
+		echo "$line" | grep -o -P '(?<=-)\d+(?=->)'
+	done
+}
+
+# @return Returns the unused Docker port closer to n=0 using 8001+n*2
+function get_port {
+	port="8001"
+	while [ `get_docker_ports | grep -E "$port$" -c` -eq 1 ]; do
+		port=$((port+2))
+	done
+	
+	echo "$port"
+	echo "! $port" >&2
+}
+
 # launch auto-updater
 #getAllVersions |
 #while read version; do
 #	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
 #done
+
+# Syncronized
+sync_file="ServersManager.lock"
 
 # Hard limits
 memory_limit="4g"
@@ -128,11 +156,14 @@ manager_ip=`echo "$manager_ip:$manager_port"`
 server_type="$1"
 mc_version="$2"
 request_ip="$3"
-port="8001" # TODO change
+lockfile "$sync_file"	# keep the choosed port
+sleep 4					# the docker run async command may not be instantaneous, so better sleep
+port=`get_port`
+socket_port=$((port+1))
 get_java_version "$mc_version"
 java_version="$?"
 
-path=`setup_server "$server_type" "$mc_version" "$request_ip" $(($port + 1)) "$manager_ip"`
+path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip"`
 # @return IP:port - error fifo path - socket fifo path
 if [ $? -eq 0 ]; then
 	# send IP
@@ -149,8 +180,11 @@ if [ $? -eq 0 ]; then
 	echo "$fd_socket"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ sudo docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$((port+1)):$((port+1))" -p "$manager_port:$manager_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	{ docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	
+	rm -f "$sync_file" # release semaphore
 else
+	rm -f "$sync_file" # release semaphore
 	echo "Error"
 	exit 1
 fi
