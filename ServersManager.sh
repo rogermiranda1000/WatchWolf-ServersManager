@@ -127,6 +127,7 @@ function get_port {
 	done
 	
 	echo "$port"
+	echo "! $port" >&2
 }
 
 # launch auto-updater
@@ -134,6 +135,9 @@ function get_port {
 #while read version; do
 #	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
 #done
+
+# Syncronized
+sync_file="ServersManager.lock"
 
 # Hard limits
 memory_limit="4g"
@@ -152,6 +156,8 @@ manager_ip=`echo "$manager_ip:$manager_port"`
 server_type="$1"
 mc_version="$2"
 request_ip="$3"
+lockfile "$sync_file"	# keep the choosed port
+sleep 4					# the docker run async command may not be instantaneous, so better sleep
 port=`get_port`
 socket_port=$((port+1))
 get_java_version "$mc_version"
@@ -175,7 +181,10 @@ if [ $? -eq 0 ]; then
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
 	{ docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	
+	rm -f "$sync_file" # release semaphore
 else
+	rm -f "$sync_file" # release semaphore
 	echo "Error"
 	exit 1
 fi
