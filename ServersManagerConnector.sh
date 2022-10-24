@@ -27,22 +27,16 @@ if [ $err -ne 0 ]; then
 	exit 1
 fi
 
-type=$(( $type + (`extract_bits 3 0 $first` << 8) ))
+type=$(( ($type << 4) + `extract_bits 7 4 $first` ))
+dst_and_return=`extract_bits 3 0 $first`
 
-if [ `extract_bits 7 4 $first` -eq 3 ]; then
+if [ $dst_and_return -eq 9 ]; then # 1 (return bit) & 001 (from server)
 	# return from Server; it can only be a server started response
 	if [ $type -ne 1 ]; then
 		exit 2 # unimplemented
 	fi
 	
-	type=`readOneByte`
-	err=$?
-	if [ $err -ne 0 ]; then
-		exit 1
-	elif [ $type -ne 0 ]; then
-		exit 2 # unimplemented
-	fi
-	type=`readOneByte`
+	type=`readShort`
 	if [ $err -ne 0 ]; then
 		exit 1
 	elif [ $type -ne 2 ]; then
@@ -58,7 +52,7 @@ if [ `extract_bits 7 4 $first` -eq 3 ]; then
 	echo "started" > "/tmp/tmp.${token}"
 	
 	exit 0
-elif [ `extract_bits 7 4 $first` -ne 0 ]; then
+elif [ $dst_and_return -ne 0 ]; then
 	exit 2 # return type set, or destiny not ServersManager
 fi
 
@@ -68,6 +62,7 @@ case $type in
 		err=$?
 		mc_version=`readString`
 		err=$(($err | $?))
+		# ServersManager will read the rest of the packet
 		
 		if [ $err -eq 0 ]; then
 			if [ -z "$USE_X" ]; then
@@ -98,13 +93,13 @@ case $type in
 						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
 					if [ ! -z "$msg" ]; then
-						type=`echo "$msg" | grep -o -P '(?<=^\[\d{2}:\d{2}:\d{2} )((ERROR)|(INFO))(?=\]: )'`
+						type=`echo "$msg" | grep -o -P '(?<=^\[\d{2}:\d{2}:\d{2} )((ERROR)|(INFO))(?=\]: )'` # TODO
 						if [ ! -z "$error_log" ] || [ "$type" == "ERROR" ]; then
 							# error
 							if [ ! -z "$error_log" ] && [ ! -z "$type" ]; then
 								# new line; send
 								echo -e "> $error_log" >&2
-								echo -n -e '\x10\x03'; sendString "$error_log" # error notification
+								echo -n -e '\x00\x38'; sendString "$error_log" # error notification
 								error_log="" # reset
 							else
 								# append
@@ -133,7 +128,7 @@ case $type in
 							exit 0
 						elif [ "$socket" == "started" ]; then
 							echo "Server started" >&2
-							echo -n -e '\x10\x02' # server started notification
+							echo -n -e '\x00\x28' # server started notification
 						else
 							echo "Uknown request from socket fifo: $socket" >&2
 						fi
