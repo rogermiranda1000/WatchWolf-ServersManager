@@ -78,7 +78,7 @@ case $type in
 			echo "Using MC server's IP $ip" >&2
 			
 			# send IP
-			echo -n -e '\x10\x01' # ServersManager response header
+			echo -n -e '\x18\x00' # ServersManager start server response header
 			sendString "$ip"
 			
 			# to not block the read
@@ -99,7 +99,7 @@ case $type in
 							if [ ! -z "$error_log" ] && [ ! -z "$type" ]; then
 								# new line; send
 								echo -e "> $error_log" >&2
-								echo -n -e '\x00\x38'; sendString "$error_log" # error notification
+								echo -n -e '\x38\x00'; sendString "$error_log" # error notification
 								error_log="" # reset
 							else
 								# append
@@ -128,7 +128,7 @@ case $type in
 							exit 0
 						elif [ "$socket" == "started" ]; then
 							echo "Server started" >&2
-							echo -n -e '\x00\x28' # server started notification
+							echo -n -e '\x28\x00' # server started notification
 						else
 							echo "Uknown request from socket fifo: $socket" >&2
 						fi
