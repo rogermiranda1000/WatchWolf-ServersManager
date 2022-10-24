@@ -11,9 +11,9 @@ function readOneByte {
 }
 
 function readShort {
-	msb=`readOneByte`
-	err=$?
 	lsb=`readOneByte`
+	err=$?
+	msb=`readOneByte`
 	err=$(($err | $?))
 	echo $((($msb << 8) | $lsb))
 	return $err
