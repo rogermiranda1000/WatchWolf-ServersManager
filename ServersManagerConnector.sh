@@ -110,7 +110,8 @@ case $type in
 								# the message was an error; we need to add it to the (already emptied) queue
 								error_log="${msg:18}" # remove the timestamp
 							fi
-						else
+						fi
+						if [ -z "$error_log" ] && [ "$type" != "ERROR" ]; then
 							# not an error; just log
 							echo "> $msg" >&2
 						fi
