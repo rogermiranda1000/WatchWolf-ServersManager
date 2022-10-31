@@ -27,7 +27,7 @@ if [ $err -ne 0 ]; then
 	exit 1
 fi
 
-type=$(( ($type << 4) + `extract_bits 7 4 $first` ))
+type=$(( ($type << 4) + ($first >> 4) ))
 dst_and_return=`extract_bits 3 0 $first`
 
 if [ $dst_and_return -eq 9 ]; then # 1 (return bit) & 001 (from server)

@@ -51,6 +51,10 @@ function readString {
 	return 0
 }
 
+function sendShort {
+	echo "$1" | LC_CTYPE=C awk '{printf "%c%c", and(int($1),0xFF), and(rshift(int($1), 8),0xFF)}' # LSB size - MSB size
+}
+
 # @param string
 function sendString {
 	if [ $# -ne 1 ]; then
@@ -61,7 +65,7 @@ function sendString {
 	text=`echo -n "$1" | head -c 65535` # trim if >(2^16-1)
 	
 	# send size
-	echo "${#text}" | LC_CTYPE=C awk '{printf "%c%c", and(int($1),0xFF), and(rshift(int($1), 8),0xFF)}' # MSB size - LSB size
+	sendShort "${#text}"
 	
 	# send array
 	echo -n "$text"
