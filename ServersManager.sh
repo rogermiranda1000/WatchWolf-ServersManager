@@ -21,7 +21,7 @@ function setup_server {
 	mkdir "$uuid"
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
-	echo -e "white-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
+	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
