@@ -72,19 +72,16 @@ case $type in
 			fi
 			# ServersManager already reads the rest of the packet
 			
-			ip=`echo "$data" | cut -d$'\n' -f1 | tr -d '\n'`
-			msg_fifo=`echo "$data" | cut -d$'\n' -f2`
-			socket_fifo=`echo "$data" | cut -d$'\n' -f3`
-			echo "Using MC server's IP $ip" >&2
-			
-			# send IP
-			echo -n -e '\x18\x00' # ServersManager start server response header
-			sendString "$ip"
+			docker_container=`echo "$data" | cut -d$'\n' -f1`
+			port=`echo "$data" | cut -d$'\n' -f2`
+			msg_fifo=`echo "$data" | cut -d$'\n' -f3`
+			socket_fifo=`echo "$data" | cut -d$'\n' -f4`
 			
 			# to not block the read
 			exec 3<>"$msg_fifo"
 			exec 4<>"$socket_fifo"
 			
+			ip=""
 			error_log=""
 			
 			while true; do
@@ -92,6 +89,17 @@ case $type in
 						IFS= read -t 0.02 -u 3 -r msg; statusA=$?
 						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
+					if [ -z "$ip" ] && [ ! -z "$msg" ]; then
+						# docker started; get IP & send it to the Tester
+						ip=`docker inspect "$docker_container" | jq -r '.[0].NetworkSettings.IPAddress'`
+						ip=`echo "$ip:$port" | tr -d '\n'`
+						echo "Using MC server's IP $ip" >&2
+						
+						# send IP
+						echo -n -e '\x18\x00' # ServersManager start server response header
+						sendString "$ip"
+					fi
+					
 					if [ ! -z "$msg" ]; then
 						type=`echo "$msg" | grep -o -P '(?<=^\[\d{2}:\d{2}:\d{2} )((ERROR)|(INFO))(?=\]: )'` # TODO
 						if [ ! -z "$error_log" ] || [ "$type" == "ERROR" ]; then

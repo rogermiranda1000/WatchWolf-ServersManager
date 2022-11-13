@@ -148,7 +148,7 @@ if [ -z "$1" ] || [ -z "$2" ]; then
 fi
 
 # reply
-manager_ip=`hostname -I | sed 's/ //g'` # change this IP to the ServerManager's one
+manager_ip=`hostname -I | sed 's/ //g'`
 manager_port=8000 # change this IP to the ServerManager's one
 manager_ip="$manager_ip:$manager_port"
 
@@ -164,27 +164,26 @@ get_java_version "$mc_version"
 java_version="$?"
 
 path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip"`
-# @return IP:port - error fifo path - socket fifo path
+# @return docker - port - error fifo path - socket fifo path
 if [ $? -eq 0 ]; then
-	# send IP
-	ip="127.0.0.1" # we're using docker; if not we should run `hostname -I | sed 's/ //g'`
-	echo "$ip:$port" # print the trimmed ip and port
+	id="${server_type}_${mc_version}-${path}"
+	printf "$id\n$port\n"
 	
 	# error FD
 	fd=`mktemp -u`
 	mkfifo -m 600 "$fd"
-	echo "$fd" # send the FD
+	printf "$fd\n" # send the FD
 	
 	fd_socket="/tmp/tmp.$path"
 	mkfifo -m 600 "$fd_socket"
-	echo "$fd_socket"
+	printf "$fd_socket\n"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	{ docker run -i --rm --entrypoint /bin/sh --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	
 	rm -f "$sync_file" # release semaphore
 else
 	rm -f "$sync_file" # release semaphore
-	echo "Error"
+	echo "Error" >&2
 	exit 1
 fi
