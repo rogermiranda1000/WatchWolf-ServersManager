@@ -114,15 +114,14 @@ function get_docker_ports {
 	docker container ls --format "table {{.Ports}}" -a | tail -n +2 | while read ports; do
 		line=`echo "$ports" | awk '{ for(i=1;i<=NF;i++) print $i }'`
 		# extract the ports from one line
-		echo "$line" | grep -o -P '(?<=:)\d+(?=-)' # also included (?=->)
-		echo "$line" | grep -o -P '(?<=-)\d+(?=->)'
+		echo "$line" | grep -o -P '(?<=[:-])\d+(?=-)'
 	done
 }
 
 # @return Returns the unused Docker port closer to n=0 using 8001+n*2
 function get_port {
 	port="8001"
-	while [ `get_docker_ports | grep -E "$port$" -c` -eq 1 ]; do
+	while [ `get_docker_ports | grep -E "$port$" -c` -ne 0 ]; do
 		port=$((port+2))
 	done
 	

@@ -81,7 +81,7 @@ case $type in
 			exec 3<>"$msg_fifo"
 			exec 4<>"$socket_fifo"
 			
-			ip=""
+			ip="null"
 			error_log=""
 			
 			while true; do
@@ -89,15 +89,17 @@ case $type in
 						IFS= read -t 0.02 -u 3 -r msg; statusA=$?
 						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
-					if [ -z "$ip" ] && [ ! -z "$msg" ]; then
+					if [ "$ip" == "null" ]; then
 						# docker started; get IP & send it to the Tester
-						ip=`docker inspect "$docker_container" | jq -r '.[0].NetworkSettings.IPAddress'`
-						ip=`echo "$ip:$port" | tr -d '\n'`
-						echo "Using MC server's IP $ip" >&2
-						
-						# send IP
-						echo -n -e '\x18\x00' # ServersManager start server response header
-						sendString "$ip"
+						ip=`docker inspect "$docker_container" 2>/dev/null | jq -r '.[0].NetworkSettings.IPAddress'`
+						if [ "$ip" != "null" ]; then
+							ip=`echo "$ip:$port" | tr -d '\n'`
+							echo "Using MC server's IP $ip" >&2
+							
+							# send IP
+							echo -n -e '\x18\x00' # ServersManager start server response header
+							sendString "$ip"
+						fi
 					fi
 					
 					if [ ! -z "$msg" ]; then
