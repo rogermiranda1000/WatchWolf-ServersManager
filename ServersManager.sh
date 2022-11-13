@@ -9,6 +9,7 @@ source ./ConnectorHelper.sh
 # @param requestee_ip
 # @param use_port
 # @param reply_ip
+# @param server_port
 function setup_server {
 	if [ `ls -d server-types/*/ | grep -c -E "^server-types/$1/$"` -eq 0 ]; then
 		return 1 # unimplemented server type
@@ -21,7 +22,7 @@ function setup_server {
 	mkdir "$uuid"
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
-	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
+	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=8\nserver-port=$6" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
@@ -162,7 +163,7 @@ socket_port=$((port+1))
 get_java_version "$mc_version"
 java_version="$?"
 
-path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip"`
+path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip" "$port"`
 # @return docker - port - error fifo path - socket fifo path
 if [ $? -eq 0 ]; then
 	id="${server_type}_${mc_version}-${path}"
