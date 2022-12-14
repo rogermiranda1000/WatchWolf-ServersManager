@@ -51,6 +51,39 @@ function readString {
 	return 0
 }
 
+# @param path_offset
+function readFileArray {
+	arr_size=`readShort`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+	
+	for (( i=0; i < $arr_size; i++ )); do
+		readFile "$1"
+	done
+	
+	return 0
+}
+
+# @param path_offset
+function readFile {
+	name=`readString`
+	offset=`readString` # TODO check use of absolute path or '../'
+	
+	# get 4B length
+	length=0
+	offset=24
+	for (( i=0; i<4; i++ )); do
+		length=$((`readOneByte` << $offset))
+	done
+	
+	for (( i=0; i<$length; i++ )); do
+		echo -n -e `readOneByte` > "$1$offset$name"
+	done
+	# TODO zip
+}
+
 function sendShort {
 	echo "$1" | LC_CTYPE=C awk '{printf "%c%c", and(int($1),0xFF), and(rshift(int($1), 8),0xFF)}' # LSB size - MSB size
 }

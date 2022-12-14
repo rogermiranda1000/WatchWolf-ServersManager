@@ -22,7 +22,7 @@ function setup_server {
 	mkdir "$uuid"
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
-	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=8\nserver-port=$6" > "$uuid/server.properties" # non-default server properties
+	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=100\nserver-port=$6\nspawn-protection=0" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
@@ -58,10 +58,8 @@ function setup_server {
 		fi
 	done
 	
-	# TODO copy worlds
-	readArray
-	# TODO copy config files
-	readArray
+	# copy world & config files
+	readFileArray "$uuid/"
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
@@ -129,12 +127,6 @@ function get_port {
 	echo "$port"
 	echo "! $port" >&2
 }
-
-# launch auto-updater
-#getAllVersions |
-#while read version; do
-#	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
-#done
 
 # Syncronized
 sync_file="ServersManager.lock"
