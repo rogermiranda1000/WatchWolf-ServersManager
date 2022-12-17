@@ -92,13 +92,15 @@ function readFile {
 		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 		set +x
 		
+		file=""
 		for (( i=0; i<$length; i++ )); do
 			byte=`readOneByte`
 			if [ $err -ne 0 ]; then
 				return 1
 			fi
-			echo -n -e "$byte" > "$path"
+			file=`echo "$file $byte"`
 		done
+		echo "$file" | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$path"
 		
 		# enable verbose
 		if [ ! -z "$USE_X" ]; then
