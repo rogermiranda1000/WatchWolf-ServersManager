@@ -73,7 +73,7 @@ function readFile {
 	
 	folder_path="$1$offset"
 	file_path="$folder_path$name"
-	echo "[v] Found file $file_path" >&2
+	#echo "[v] Found file $file_path" >&2
 	
 	# get 4B length
 	length=0
@@ -86,9 +86,11 @@ function readFile {
 		(( length |= $current << ($i*8) )) # c, c<<8, c<<16, c<<24
 	done
 	
+	# we need the directory where the file will be
 	mkdir -p "$folder_path" # ignore if exists; make parent directories if needed
+	
 	if [ $length -eq 0 ]; then
-		touch "$file_path"
+		touch "$file_path" # empty file
 	else
 		# disable verbose
 		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
@@ -100,7 +102,7 @@ function readFile {
 			if [ $err -ne 0 ]; then
 				return 1
 			fi
-			file=`echo "$file $byte"`
+			file=`echo -n "$file $byte"`
 		done
 		echo "$file" | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$file_path"
 		
@@ -110,8 +112,8 @@ function readFile {
 			set -x
 		fi
 	fi
-	# TODO zip
 	
+	echo "$file_path"
 	return 0
 }
 

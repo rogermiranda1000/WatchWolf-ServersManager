@@ -3,6 +3,25 @@
 source ./SpigotBuilder.sh
 source ./ConnectorHelper.sh
 
+# @param path_offset
+function readFileExpandIfZip {
+	file=`readFile "$1"`
+	
+	directory=`echo "$file" | grep -o -P '^.*(?=/[^/]*$)'`
+	extension=`echo "$file" | grep -o -P '(?<=\.)[^/.]*$'`
+	
+	if [ "$extension" == "zip" ]; then
+		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
+		if [ -z "$USE_X" ]; then
+			unzip "$file" -d "$directory" >/dev/null
+		else
+			unzip "$file" -d "$directory"  >&2 # same, but log
+		fi
+		
+		rm "$file" # already unzipped; delete
+	fi
+}
+
 # (indirect param) packet containing the plugins, worlds and config files
 # @param server_type
 # @param server_version
@@ -54,7 +73,7 @@ function setup_server {
 				fi
 			fi
 		elif [ $data -eq 2 ]; then
-			readFile "$uuid/plugins/"
+			readFileExpandIfZip "$uuid/plugins/"
 		else
 			# TODO other plugins
 			echo "Uknown plugin type ($data)" >&2
@@ -69,7 +88,7 @@ function setup_server {
 		return 1
 	fi
 	for (( f=0; f < $num_files; f++ )); do
-		readFile "$uuid/"
+		readFileExpandIfZip "$uuid/"
 	done
 	
 	# copy WatchWolf-Server plugin & .yml file
