@@ -22,6 +22,65 @@ function readFileExpandIfZip {
 	fi
 }
 
+# @param output_dir
+# @param server_version
+function readPlugin {
+	data=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 2
+	fi
+	
+	if [ $data -eq 0 ]; then
+		# usual plugin
+		plugin=`readString`
+		err=$?
+		version=`readString`
+		err=$(($err | $?))
+		
+		if [ $err -eq 0 ]; then
+			echo "Requesting usual plugin $plugin" >&2
+			copy_usual_plugin "$1" "$2" "$plugin" "$version"
+			err=$?
+			if [ $err -ne 0 ]; then
+				echo "Error finding $plugin" >&2
+			fi
+		fi
+	elif [ $data -eq 1 ]; then
+		# uploaded plugin
+		url=`readString`
+		if [ $err -ne 0 ]; then
+			return 1
+		fi
+		
+		spigot_id=`echo "$url" | grep -o -P '(?<=spigotmc.org/resources/)[^/]+' | grep -o -P '\d+$'`
+		if [ -z "$spigot_id" ]; then
+			wget -P "$1" "$url" >&2
+		else
+			# Spigot plugin; get plugin from Spiget website
+			spigot_plugin_name=`wget -q -O - "https://api.spiget.org/v2/resources/$spigot_id" | jq -r .name`
+			
+			spigot_plugin_version=`echo "$url" | grep -o -P '(?<=/download\?version=)[^/]+$'`
+			if [ -z "$spigot_plugin_version" ]; then
+				url="https://api.spiget.org/v2/resources/$spigot_id/download"
+			else
+				url="https://api.spiget.org/v2/resources/$spigot_id/versions/$spigot_plugin_version/download"
+			fi
+			
+			wget -O "$1$spigot_plugin_name.jar" "$url" >&2
+		fi
+	elif [ $data -eq 2 ]; then
+		# file plugin
+		readFileExpandIfZip "$uuid/plugins/"
+	else
+		# TODO other plugins
+		echo "Uknown plugin type ($data)" >&2
+		return 2
+	fi
+	
+	return 0 # all ok
+}
+
 # (indirect param) packet containing the plugins, worlds and config files
 # @param server_type
 # @param server_version
@@ -52,32 +111,9 @@ function setup_server {
 		return 1
 	fi
 	for (( p=0; p < $num_plugins; p++ )); do
-		data=`readOneByte`
-		err=$?
+		readPlugin "$uuid/plugins/" "$2"
 		if [ $err -ne 0 ]; then
-			return 2
-		fi
-		
-		if [ $data -eq 0 ]; then
-			# usual plugin
-			plugin=`readString`
-			err=$?
-			version=`readString`
-			err=$(($err | $?))
-			if [ $err -eq 0 ]; then
-				echo "Requesting usual plugin $plugin" >&2
-				copy_usual_plugin "$uuid/plugins" "$2" "$plugin" "$version"
-				err=$?
-				if [ $err -ne 0 ]; then
-					echo "Error finding $plugin" >&2
-				fi
-			fi
-		elif [ $data -eq 2 ]; then
-			readFileExpandIfZip "$uuid/plugins/"
-		else
-			# TODO other plugins
-			echo "Uknown plugin type ($data)" >&2
-			return 2
+			return $err
 		fi
 	done
 	
