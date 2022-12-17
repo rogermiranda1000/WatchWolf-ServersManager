@@ -3,12 +3,91 @@
 source ./SpigotBuilder.sh
 source ./ConnectorHelper.sh
 
+# @param path_offset
+function readFileExpandIfZip {
+	file=`readFile "$1"`
+	
+	directory=`echo "$file" | grep -o -P '^.*(?=/[^/]*$)'`
+	extension=`echo "$file" | grep -o -P '(?<=\.)[^/.]*$'`
+	
+	if [ "$extension" == "zip" ]; then
+		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
+		if [ -z "$USE_X" ]; then
+			unzip "$file" -d "$directory" >/dev/null
+		else
+			unzip "$file" -d "$directory"  >&2 # same, but log
+		fi
+		
+		rm "$file" # already unzipped; delete
+	fi
+}
+
+# @param output_dir
+# @param server_version
+function readPlugin {
+	data=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 2
+	fi
+	
+	if [ $data -eq 0 ]; then
+		# usual plugin
+		plugin=`readString`
+		err=$?
+		version=`readString`
+		err=$(($err | $?))
+		
+		if [ $err -eq 0 ]; then
+			echo "Requesting usual plugin $plugin" >&2
+			copy_usual_plugin "$1" "$2" "$plugin" "$version"
+			err=$?
+			if [ $err -ne 0 ]; then
+				echo "Error finding $plugin" >&2
+			fi
+		fi
+	elif [ $data -eq 1 ]; then
+		# uploaded plugin
+		url=`readString`
+		if [ $err -ne 0 ]; then
+			return 1
+		fi
+		
+		spigot_id=`echo "$url" | grep -o -P '(?<=spigotmc.org/resources/)[^/]+' | grep -o -P '\d+$'`
+		if [ -z "$spigot_id" ]; then
+			wget -P "$1" "$url" >&2
+		else
+			# Spigot plugin; get plugin from Spiget website
+			spigot_plugin_name=`wget -q -O - "https://api.spiget.org/v2/resources/$spigot_id" | jq -r .name`
+			
+			spigot_plugin_version=`echo "$url" | grep -o -P '(?<=/download\?version=)[^/]+$'`
+			if [ -z "$spigot_plugin_version" ]; then
+				url="https://api.spiget.org/v2/resources/$spigot_id/download"
+			else
+				url="https://api.spiget.org/v2/resources/$spigot_id/versions/$spigot_plugin_version/download"
+			fi
+			
+			wget -O "$1$spigot_plugin_name.jar" "$url" >&2
+		fi
+	elif [ $data -eq 2 ]; then
+		# file plugin
+		readFileExpandIfZip "$uuid/plugins/"
+	else
+		# TODO other plugins
+		echo "Uknown plugin type ($data)" >&2
+		return 2
+	fi
+	
+	return 0 # all ok
+}
+
 # (indirect param) packet containing the plugins, worlds and config files
 # @param server_type
 # @param server_version
 # @param requestee_ip
 # @param use_port
 # @param reply_ip
+# @param server_port
 function setup_server {
 	if [ `ls -d server-types/*/ | grep -c -E "^server-types/$1/$"` -eq 0 ]; then
 		return 1 # unimplemented server type
@@ -21,46 +100,32 @@ function setup_server {
 	mkdir "$uuid"
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
-	echo -e "white-list=true\nmotd=Minecraft test server\nmax-players=8" > "$uuid/server.properties" # non-default server properties
+	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=100\nserver-port=$6\nspawn-protection=0" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
-	arr_size=`readShort`
+	num_plugins=`readShort`
+	arr_size=$num_plugins
 	err=$?
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
-	for (( i=0; i < $arr_size; i++ )); do
-		data=`readOneByte`
-		err=$?
+	for (( p=0; p < $num_plugins; p++ )); do
+		readPlugin "$uuid/plugins/" "$2"
 		if [ $err -ne 0 ]; then
-			return 2
-		fi
-		
-		if [ $data -eq 0 ]; then
-			# usual plugin
-			plugin=`readString`
-			err=$?
-			version=`readString`
-			err=$(($err | $?))
-			if [ $err -eq 0 ]; then
-				copy_usual_plugin "$uuid/plugins" "$2" "$plugin" "$version"
-				err=$?
-				if [ $err -ne 0 ]; then
-					echo "Error finding $plugin" >&2
-				fi
-			fi
-		else
-			# TODO other plugins
-			echo "Uknown plugin type ($data)" >&2
-			return 2
+			return $err
 		fi
 	done
 	
-	# TODO copy worlds
-	readArray
-	# TODO copy config files
-	readArray
+	# copy world & config files
+	num_files=`readShort`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+	for (( f=0; f < $num_files; f++ )); do
+		readFileExpandIfZip "$uuid/"
+	done
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
@@ -114,27 +179,20 @@ function get_docker_ports {
 	docker container ls --format "table {{.Ports}}" -a | tail -n +2 | while read ports; do
 		line=`echo "$ports" | awk '{ for(i=1;i<=NF;i++) print $i }'`
 		# extract the ports from one line
-		echo "$line" | grep -o -P '(?<=:)\d+(?=-)' # also included (?=->)
-		echo "$line" | grep -o -P '(?<=-)\d+(?=->)'
+		echo "$line" | grep -o -P '(?<=[:-])\d+(?=-)'
 	done
 }
 
 # @return Returns the unused Docker port closer to n=0 using 8001+n*2
 function get_port {
 	port="8001"
-	while [ `get_docker_ports | grep -E "$port$" -c` -eq 1 ]; do
+	while [ `get_docker_ports | grep -E "$port$" -c` -ne 0 ]; do
 		port=$((port+2))
 	done
 	
 	echo "$port"
 	echo "! $port" >&2
 }
-
-# launch auto-updater
-#getAllVersions |
-#while read version; do
-#	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
-#done
 
 # Syncronized
 sync_file="ServersManager.lock"
@@ -148,9 +206,9 @@ if [ -z "$1" ] || [ -z "$2" ]; then
 fi
 
 # reply
-manager_ip=`hostname -I | sed 's/ //g'` # change this IP to the ServerManager's one
+manager_ip=`hostname -I | sed 's/ //g'`
 manager_port=8000 # change this IP to the ServerManager's one
-manager_ip=`echo "$manager_ip:$manager_port"`
+manager_ip="$manager_ip:$manager_port"
 
 # MC configuration
 server_type="$1"
@@ -163,28 +221,27 @@ socket_port=$((port+1))
 get_java_version "$mc_version"
 java_version="$?"
 
-path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip"`
-# @return IP:port - error fifo path - socket fifo path
+path=`setup_server "$server_type" "$mc_version" "$request_ip" "$socket_port" "$manager_ip" "$port"`
+# @return docker - port - error fifo path - socket fifo path
 if [ $? -eq 0 ]; then
-	# send IP
-	ip="127.0.0.1" # we're using docker; if not we should run `hostname -I | sed 's/ //g'`
-	echo "$ip:$port" # print the trimmed ip and port
+	id="${server_type}_${mc_version}-${path}"
+	printf "$id\n$port\n"
 	
 	# error FD
 	fd=`mktemp -u`
 	mkfifo -m 600 "$fd"
-	echo "$fd" # send the FD
+	printf "$fd\n" # send the FD
 	
 	fd_socket="/tmp/tmp.$path"
 	mkfifo -m 600 "$fd_socket"
-	echo "$fd_socket"
+	printf "$fd_socket\n"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ docker run -i --rm --entrypoint /bin/sh --name "${server_type}_${mc_version}-${path}" -p "$port:$port" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	{ docker run -i --rm --entrypoint /bin/sh --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" <<< "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	
 	rm -f "$sync_file" # release semaphore
 else
 	rm -f "$sync_file" # release semaphore
-	echo "Error"
+	echo "Error" >&2
 	exit 1
 fi
