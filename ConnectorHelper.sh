@@ -52,36 +52,45 @@ function readString {
 }
 
 # @param path_offset
-function readFileArray {
-	arr_size=`readShort`
+function readFile {
+	name=`readString`
 	err=$?
+	offset=`readString` # TODO check use of absolute path or '../'
+	err=$(($err | $?))
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
 	
-	for (( i=0; i < $arr_size; i++ )); do
-		readFile "$1"
-	done
-	
-	return 0
-}
-
-# @param path_offset
-function readFile {
-	name=`readString`
-	offset=`readString` # TODO check use of absolute path or '../'
+	echo "Found file $1$offset$name" >&2
 	
 	# get 4B length
 	length=0
 	offset=24
 	for (( i=0; i<4; i++ )); do
-		length=$((`readOneByte` << $offset))
+		current=`readOneByte`
+		err=$?
+		if [ $err -ne 0 ]; then
+			return 1
+		fi
+		length=$(($current << ((3-$i)*8))) # c<<24, c<<16, c<<8, c
+		offset=$(())
 	done
 	
-	for (( i=0; i<$length; i++ )); do
-		echo -n -e `readOneByte` > "$1$offset$name"
-	done
+	path="$1$offset$name"
+	if [ $length -eq 0 ]; then
+		touch "$path"
+	else
+		for (( i=0; i<$length; i++ )); do
+			byte=`readOneByte`
+			if [ $err -ne 0 ]; then
+				return 1
+			fi
+			echo -n -e "$byte" > "$path"
+		done
+	fi
 	# TODO zip
+	
+	return 0
 }
 
 function sendShort {

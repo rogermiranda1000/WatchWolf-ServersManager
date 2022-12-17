@@ -45,12 +45,15 @@ function setup_server {
 			version=`readString`
 			err=$(($err | $?))
 			if [ $err -eq 0 ]; then
+				echo "Requesting usual plugin $plugin" >&2
 				copy_usual_plugin "$uuid/plugins" "$2" "$plugin" "$version"
 				err=$?
 				if [ $err -ne 0 ]; then
 					echo "Error finding $plugin" >&2
 				fi
 			fi
+		elif [ $data -eq 2 ]; then
+			readFile "$uuid/plugins/"
 		else
 			# TODO other plugins
 			echo "Uknown plugin type ($data)" >&2
@@ -59,7 +62,14 @@ function setup_server {
 	done
 	
 	# copy world & config files
-	readFileArray "$uuid/"
+	arr_size=`readShort`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+	for (( i=0; i < $arr_size; i++ )); do
+		readFile "$uuid/"
+	done
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
