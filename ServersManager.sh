@@ -26,12 +26,13 @@ function setup_server {
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
-	arr_size=`readShort`
+	num_plugins=`readShort`
+	arr_size=$num_plugins
 	err=$?
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
-	for (( i=0; i < $arr_size; i++ )); do
+	for (( p=0; p < $num_plugins; p++ )); do
 		data=`readOneByte`
 		err=$?
 		if [ $err -ne 0 ]; then
@@ -62,12 +63,12 @@ function setup_server {
 	done
 	
 	# copy world & config files
-	arr_size=`readShort`
+	num_files=`readShort`
 	err=$?
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
-	for (( i=0; i < $arr_size; i++ )); do
+	for (( f=0; f < $num_files; f++ )); do
 		readFile "$uuid/"
 	done
 	
