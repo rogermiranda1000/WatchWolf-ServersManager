@@ -3,6 +3,84 @@
 source ./SpigotBuilder.sh
 source ./ConnectorHelper.sh
 
+# @param path_offset
+function readFileExpandIfZip {
+	file=`readFile "$1"`
+	
+	directory=`echo "$file" | grep -o -P '^.*(?=/[^/]*$)'`
+	extension=`echo "$file" | grep -o -P '(?<=\.)[^/.]*$'`
+	
+	if [ "$extension" == "zip" ]; then
+		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
+		if [ -z "$USE_X" ]; then
+			unzip "$file" -d "$directory" >/dev/null
+		else
+			unzip "$file" -d "$directory"  >&2 # same, but log
+		fi
+		
+		rm "$file" # already unzipped; delete
+	fi
+}
+
+# @param output_dir
+# @param server_version
+function readPlugin {
+	data=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 2
+	fi
+	
+	if [ $data -eq 0 ]; then
+		# usual plugin
+		plugin=`readString`
+		err=$?
+		version=`readString`
+		err=$(($err | $?))
+		
+		if [ $err -eq 0 ]; then
+			echo "Requesting usual plugin $plugin" >&2
+			copy_usual_plugin "$1" "$2" "$plugin" "$version"
+			err=$?
+			if [ $err -ne 0 ]; then
+				echo "Error finding $plugin" >&2
+			fi
+		fi
+	elif [ $data -eq 1 ]; then
+		# uploaded plugin
+		url=`readString`
+		if [ $err -ne 0 ]; then
+			return 1
+		fi
+		
+		spigot_id=`echo "$url" | grep -o -P '(?<=spigotmc.org/resources/)[^/]+' | grep -o -P '\d+$'`
+		if [ -z "$spigot_id" ]; then
+			wget -P "$1" "$url" >&2
+		else
+			# Spigot plugin; get plugin from Spiget website
+			spigot_plugin_name=`wget -q -O - "https://api.spiget.org/v2/resources/$spigot_id" | jq -r .name`
+			
+			spigot_plugin_version=`echo "$url" | grep -o -P '(?<=/download\?version=)[^/]+$'`
+			if [ -z "$spigot_plugin_version" ]; then
+				url="https://api.spiget.org/v2/resources/$spigot_id/download"
+			else
+				url="https://api.spiget.org/v2/resources/$spigot_id/versions/$spigot_plugin_version/download"
+			fi
+			
+			wget -O "$1$spigot_plugin_name.jar" "$url" >&2
+		fi
+	elif [ $data -eq 2 ]; then
+		# file plugin
+		readFileExpandIfZip "$uuid/plugins/"
+	else
+		# TODO other plugins
+		echo "Uknown plugin type ($data)" >&2
+		return 2
+	fi
+	
+	return 0 # all ok
+}
+
 # (indirect param) packet containing the plugins, worlds and config files
 # @param server_type
 # @param server_version
@@ -22,46 +100,32 @@ function setup_server {
 	mkdir "$uuid"
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
-	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=8\nserver-port=$6" > "$uuid/server.properties" # non-default server properties
+	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=100\nserver-port=$6\nspawn-protection=0" > "$uuid/server.properties" # non-default server properties
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
-	arr_size=`readShort`
+	num_plugins=`readShort`
+	arr_size=$num_plugins
 	err=$?
 	if [ $err -ne 0 ]; then
 		return 1
 	fi
-	for (( i=0; i < $arr_size; i++ )); do
-		data=`readOneByte`
-		err=$?
+	for (( p=0; p < $num_plugins; p++ )); do
+		readPlugin "$uuid/plugins/" "$2"
 		if [ $err -ne 0 ]; then
-			return 2
-		fi
-		
-		if [ $data -eq 0 ]; then
-			# usual plugin
-			plugin=`readString`
-			err=$?
-			version=`readString`
-			err=$(($err | $?))
-			if [ $err -eq 0 ]; then
-				copy_usual_plugin "$uuid/plugins" "$2" "$plugin" "$version"
-				err=$?
-				if [ $err -ne 0 ]; then
-					echo "Error finding $plugin" >&2
-				fi
-			fi
-		else
-			# TODO other plugins
-			echo "Uknown plugin type ($data)" >&2
-			return 2
+			return $err
 		fi
 	done
 	
-	# TODO copy worlds
-	readArray
-	# TODO copy config files
-	readArray
+	# copy world & config files
+	num_files=`readShort`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+	for (( f=0; f < $num_files; f++ )); do
+		readFileExpandIfZip "$uuid/"
+	done
 	
 	# copy WatchWolf-Server plugin & .yml file
 	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
@@ -129,12 +193,6 @@ function get_port {
 	echo "$port"
 	echo "! $port" >&2
 }
-
-# launch auto-updater
-#getAllVersions |
-#while read version; do
-#	buildVersion `pwd`/server-types/Spigot "$version" >/dev/null 2>&1 &
-#done
 
 # Syncronized
 sync_file="ServersManager.lock"
