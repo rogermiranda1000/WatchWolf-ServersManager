@@ -70,5 +70,5 @@ function buildVersion {
 	fi
 	
 	cmd="$pre_cmd; mkdir BuildTools; cd BuildTools; curl -z BuildTools.jar -o BuildTools.jar https://hub.spigotmc.org/jenkins/job/BuildTools/lastSuccessfulBuild/artifact/target/BuildTools.jar && java -jar BuildTools.jar --rev $mc_version && cp spigot-$mc_version.jar /Versions/$mc_version.jar"
-	sudo docker run -i --rm --detach --entrypoint /bin/sh --name "Spigot_build_$2" -v "$1":/Versions "openjdk:$java_version" <<< "$cmd"
+	sudo docker run -i --rm --detach --name "Spigot_build_$2" -v "$1":/Versions "openjdk:$java_version" /bin/bash -c "$cmd"
 }
