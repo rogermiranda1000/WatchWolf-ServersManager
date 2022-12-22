@@ -215,6 +215,7 @@ server_type="$1"
 mc_version="$2"
 request_ip="$3"
 lockfile "$sync_file"	# keep the choosed port
+sleep 4					# the docker run async command may not be instantaneous, so better sleep
 port=`get_port`
 socket_port=$((port+1))
 get_java_version "$mc_version"
@@ -236,12 +237,7 @@ if [ $? -eq 0 ]; then
 	printf "$fd_socket\n"
 	
 	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ docker run -i --rm --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" /bin/bash -c "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null 2>&1 & disown # start the server and after finishing, close the connections
-	
-	# we need the container running before releasing the semaphore
-	while [ `docker container ls -a | grep -c "$id"` -eq 0 ]; do
-		sleep 1 # wait
-	done
+	{ docker run -i --rm --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" /bin/bash -c "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	
 	rm -f "$sync_file" # release semaphore
 else
