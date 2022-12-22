@@ -90,14 +90,9 @@ case $type in
 						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
 						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
 					if [ "$ip" == "null" ]; then
-						# are you sure that the container is running?
-						while [ `docker container ls -a | grep -c "$id"` -eq 0 ]; do
-							sleep 1 # wait
-						done
-						
 						# docker started; get IP & send it to the Tester
 						ip=`docker inspect "$docker_container" 2>/dev/null | jq -r '.[0].NetworkSettings.IPAddress'`
-						if [ "$ip" != "null" ]; then
+						if [ "$ip" != "null" ] && [ ! -z "$ip" ]; then
 							ip=`echo "$ip:$port" | tr -d '\n'`
 							echo "Using MC server's IP $ip" >&2
 							
