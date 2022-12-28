@@ -96,12 +96,10 @@ function readFile {
 		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 		set +x
 		
-		file=""
 		for (( i=0; i<$length; i += 128 )); do
-			bytes=`od -N128 -An -vtu1` # everything beyond length will be truncated
-			file=`echo -n "$file $bytes"`
+			echo "Downloading $name... $i/$length" >&2
+			od -N128 -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$file_path" # everything beyond length will be truncated
 		done
-		echo "$file" | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$file_path"
 		
 		# enable verbose
 		if [ ! -z "$USE_X" ]; then
