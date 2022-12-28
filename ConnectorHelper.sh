@@ -88,17 +88,16 @@ function readFile {
 	
 	# we need the directory where the file will be
 	mkdir -p "$folder_path" # ignore if exists; make parent directories if needed
-	
-	if [ $length -eq 0 ]; then
-		touch "$file_path" # empty file
-	else
+	touch "$file_path"
+
+	if [ $length -gt 0 ]; then
 		# disable verbose
 		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 		set +x
 		
 		for (( i=0; i<$length; i += 128 )); do
 			echo "Downloading $name... $i/$length" >&2
-			od -N128 -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$file_path" # everything beyond length will be truncated
+			od -N128 -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' >> "$file_path" # everything beyond length will be truncated
 		done
 		
 		# enable verbose
