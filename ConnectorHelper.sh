@@ -97,12 +97,9 @@ function readFile {
 		set +x
 		
 		file=""
-		for (( i=0; i<$length; i++ )); do
-			byte=`readOneByte`
-			if [ $err -ne 0 ]; then
-				return 1
-			fi
-			file=`echo -n "$file $byte"`
+		for (( i=0; i<$length; i += 128 )); do
+			bytes=`od -N128 -An -vtu1` # everything beyond length will be truncated
+			file=`echo -n "$file $bytes"`
 		done
 		echo "$file" | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' > "$file_path"
 		
