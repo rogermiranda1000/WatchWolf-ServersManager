@@ -63,6 +63,8 @@ function readString {
 
 # @param path_offset
 function readFile {
+	block_size=128 # max number of bytes per read
+
 	name=`readString`
 	err=$?
 	offset=`readString` # TODO check use of absolute path or '../'
@@ -90,21 +92,19 @@ function readFile {
 	mkdir -p "$folder_path" # ignore if exists; make parent directories if needed
 	touch "$file_path"
 
-	if [ $length -gt 0 ]; then
-		# disable verbose
-		USE_X=`case "$-" in *x*) echo "-x" ;; esac`
-		set +x
-		
-		for (( i=0; i<$length; i += 128 )); do
-			echo "Downloading $name... $i/$length" >&2
-			od -N128 -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' >> "$file_path" # everything beyond length will be truncated
-		done
-		
-		# enable verbose
-		if [ ! -z "$USE_X" ]; then
-			echo "[v] Finished reading $length bytes" >&2
-			set -x
-		fi
+	# disable verbose
+	USE_X=`case "$-" in *x*) echo "-x" ;; esac`
+	set +x
+	
+	for (( i=0; i<$length; i += 128 )); do
+		echo "Downloading $name... $i/$length" >&2
+		od -N$((($length - $i) > $block_size ? $block_size : ($length - $i))) -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' >> "$file_path" # everything beyond length will be truncated
+	done
+	
+	# enable verbose
+	if [ ! -z "$USE_X" ]; then
+		echo "[v] Finished reading $length bytes" >&2
+		set -x
 	fi
 	
 	echo "$file_path"
