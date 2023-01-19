@@ -13,6 +13,22 @@ function extract_bits {
 	echo $(( ( $num & ( $mask << $lsb ) ) >> $lsb ))
 }
 
+# @param client IP
+# @param container IP
+# @env MACHINE_IP The machine IP
+# @env WSL_MODE Using WSL (1) or native Linux (0)
+function get_ip {
+	if [ $WSL_MODE -eq 1 ]; then
+		echo "$2" # WSL doesn't support external connections; assume it's being called locally
+	else
+		if [ "$1" != "127.0.0.1" ]; then
+			echo "$2" # it's being called locally; provide docker IP
+		else
+			echo "$MACHINE_IP" # external connections; send the machine IP
+		fi
+	fi
+}
+
 USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 
 first=`readOneByte`
@@ -93,6 +109,7 @@ case $type in
 						# docker started; get IP & send it to the Tester
 						ip=`docker inspect "$docker_container" 2>/dev/null | jq -r '.[0].NetworkSettings.IPAddress'`
 						if [ "$ip" != "null" ] && [ ! -z "$ip" ]; then
+							ip=`get_ip "$SOCAT_PEERADDR" "$ip"`
 							ip=`echo "$ip:$port" | tr -d '\n'`
 							echo "Using MC server's IP $ip" >&2
 							
