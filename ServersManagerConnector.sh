@@ -15,11 +15,18 @@ function extract_bits {
 
 # @param client IP
 # @param container IP
+# @env MACHINE_IP The machine IP
+# @env WSL_MODE Using WSL (1) or native Linux (0)
 function get_ip {
-	echo "$1" >&2
-	echo "$MACHINE_IP" >&2
-	echo "$2" >&2
-	echo "$2"
+	if [ $WSL_MODE -eq 1 ]; then
+		echo "$2" # WSL doesn't support external connections; assume it's being called locally
+	else
+		if [ "$1" -ne "127.0.0.1" ]; then
+			echo "$2" # it's being called locally; provide docker IP
+		else
+			echo "$MACHINE_IP" # external connections; send the machine IP
+		fi
+	fi
 }
 
 USE_X=`case "$-" in *x*) echo "-x" ;; esac`
