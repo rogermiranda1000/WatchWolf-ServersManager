@@ -102,7 +102,7 @@ case $type in
 						# docker started; get IP & send it to the Tester
 						ip=`docker inspect "$docker_container" 2>/dev/null | jq -r '.[0].NetworkSettings.IPAddress'`
 						if [ "$ip" != "null" ] && [ ! -z "$ip" ]; then
-							îp=`get_ip "$SOCAT_PEERADDR" "$ip"`
+							ip=`get_ip "$SOCAT_PEERADDR" "$ip"`
 							ip=`echo "$ip:$port" | tr -d '\n'`
 							echo "Using MC server's IP $ip" >&2
 							
