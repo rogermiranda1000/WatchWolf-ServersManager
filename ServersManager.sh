@@ -197,10 +197,6 @@ function get_port {
 # Syncronized
 sync_file="ServersManager.lock"
 
-# Hard limits
-memory_limit="4g"
-cpu="4"
-
 if [ -z "$1" ] || [ -z "$2" ]; then
 	exit 1 # argumens needed
 fi
@@ -236,8 +232,13 @@ if [ $? -eq 0 ]; then
 	mkfifo -m 600 "$fd_socket"
 	printf "$fd_socket\n"
 	
-	cmd="cp -r /server/* ~/ ; cd ~/ ; java -Xmx${memory_limit^^} -jar server.jar nogui" # copy server base and run it
-	{ docker run -i --rm --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" --memory="$memory_limit" --cpus="$cpu" -v "$(pwd)/$path":/server:ro "openjdk:$java_version" /bin/bash -c "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
+	java_ram_param="-XX:MaxRAMFraction=1" # unlimited memory
+	if [ ! -z "$memory" ]; then
+		java_ram_param="-Xmx${memory^^}" # RAM limit specified
+	fi
+	
+	cmd="cp -r /server/* ~/ ; cd ~/ ; java $java_ram_param -jar server.jar nogui" # copy server base and run it
+	{ docker run -i --rm --name "$id" -p "$port:$port/tcp" -p "$port:$port/udp" -p "$socket_port:$socket_port" ${memory:+"--memory=$memory"} ${cpus:+"--cpus=$cpus"} -v "$(pwd)/$path":/server:ro "openjdk:$java_version" /bin/bash -c "$cmd" >"$fd" 2>&1; rm -rf "$path"; echo "end" > "$fd_socket"; } >/dev/null & disown # start the server on docker, but remove non-error messages; then remove it
 	
 	rm -f "$sync_file" # release semaphore
 else
