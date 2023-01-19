@@ -21,7 +21,7 @@ function get_ip {
 	if [ $WSL_MODE -eq 1 ]; then
 		echo "$2" # WSL doesn't support external connections; assume it's being called locally
 	else
-		if [ "$1" -ne "127.0.0.1" ]; then
+		if [ "$1" != "127.0.0.1" ]; then
 			echo "$2" # it's being called locally; provide docker IP
 		else
 			echo "$MACHINE_IP" # external connections; send the machine IP
