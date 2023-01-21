@@ -116,7 +116,8 @@ case $type in
 				while
 						IFS= read -t 0.02 -u 3 -r msg; statusA=$?
 						IFS= read -t 0.01 -u 4 -r socket; statusB=$?
-						[ $statusA -eq 0 ] || [ $statusB -eq 0 ]; do
+						tcp=`get_operation`; statusC=$?
+						[ $statusA -eq 0 ] || [ $statusB -eq 0 ] || [ $statusC -eq 0 ]; do
 					if [ "$ip" == "null" ] || [ -z "$ip" ]; then
 						# docker started; get IP & send it to the Tester
 						ip=`docker inspect "$docker_container" 2>/dev/null | jq -r '.[0].NetworkSettings.IPAddress'`
@@ -173,12 +174,19 @@ case $type in
 							echo "Uknown request from socket fifo: $socket" >&2
 						fi
 					fi
+					if [ ! -z "$tcp" ]; then
+						echo "!" >&2
+					fi
 				done
 				sleep 1
 			done
 		else
 			echo "Received Start server request, but arguments were invalid" >&2
 		fi
+		;;
+		
+	4)
+		echo "Get coverage request without any prior start server" >&2
 		;;
 		
 	*)
