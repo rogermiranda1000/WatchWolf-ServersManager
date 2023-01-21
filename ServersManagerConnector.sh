@@ -29,22 +29,34 @@ function get_ip {
 	fi
 }
 
+# @return <type>\n<dst_and_return>
+# @return 0 if ok, 1 if error
+function get_operation {
+	first=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+
+	type=`readOneByte`
+	err=$?
+	if [ $err -ne 0 ]; then
+		return 1
+	fi
+
+	echo $(( ($type << 4) + ($first >> 4) )) 	# @return type
+	extract_bits 3 0 $first						# @return dst_and_return
+	return 0
+}
+
 USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 
-first=`readOneByte`
-err=$?
+r=`get_operation`; err=$?
 if [ $err -ne 0 ]; then
 	exit 1
 fi
-
-type=`readOneByte`
-err=$?
-if [ $err -ne 0 ]; then
-	exit 1
-fi
-
-type=$(( ($type << 4) + ($first >> 4) ))
-dst_and_return=`extract_bits 3 0 $first`
+type=`echo "$r" | head -n1`
+dst_and_return=`echo "$r" | tail -n1`
 
 if [ $dst_and_return -eq 9 ]; then # 1 (return bit) & 001 (from server)
 	# return from Server; it can only be a server started response
