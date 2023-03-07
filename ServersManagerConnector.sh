@@ -22,9 +22,9 @@ function get_ip {
 		echo "$2" # WSL doesn't support external connections; assume it's being called locally
 	else
 		if [ "$1" != "127.0.0.1" ]; then
-			echo "$2" # it's being called locally; provide docker IP
-		else
 			echo "$MACHINE_IP" # external connections; send the machine IP
+		else
+			echo "$2" # it's being called locally; provide docker IP
 		fi
 	fi
 }
