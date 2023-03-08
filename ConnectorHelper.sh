@@ -63,7 +63,7 @@ function readString {
 
 # @param path_offset
 function readFile {
-	block_size=128 # max number of bytes per read
+	block_size=1024 # max number of bytes per read
 
 	name=`readString`
 	err=$?
@@ -96,7 +96,7 @@ function readFile {
 	USE_X=`case "$-" in *x*) echo "-x" ;; esac`
 	set +x
 	
-	for (( i=0; i<$length; i += 128 )); do
+	for (( i=0; i<$length; i += $block_size )); do
 		echo "Downloading $name... $i/$length" >&2
 		od -N$((($length - $i) > $block_size ? $block_size : ($length - $i))) -An -vtu1 | awk '{ for(i = 1; i <= NF; i++) printf("%c",$i) }' >> "$file_path" # everything beyond length will be truncated
 	done
