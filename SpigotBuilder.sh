@@ -2,7 +2,7 @@
 
 function getAllVersions {
 	# 'https://hub.spigotmc.org/versions' contains all the version files
-	curl https://hub.spigotmc.org/versions/ | grep -o -P '1\.\d+(\.\d+)?(?=\.json)' | sort --reverse --version-sort --field-separator=. | uniq -d
+	curl -s https://hub.spigotmc.org/versions/ | grep -o -P '1\.\d+(\.\d+)?(?=\.json)' | sort --reverse --version-sort --field-separator=. | uniq -d
 }
 
 # @param server_version
