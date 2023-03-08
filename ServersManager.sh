@@ -128,8 +128,7 @@ function setup_server {
 	done
 	
 	# copy WatchWolf-Server plugin & .yml file
-	watchwolf_server=`ls usual-plugins | grep '^WatchWolf-' | sort -r | head -1`
-	cp "usual-plugins/$watchwolf_server" "$uuid/plugins/$watchwolf_server"
+	copy_usual_plugin "$uuid/plugins/" "$2" "WatchWolf"
 	mkdir "$uuid/plugins/WatchWolf"
 	echo -e "target-ip: $3\nuse-port: $4\nreply: $5\nkey: $uuid" > "$uuid/plugins/WatchWolf/config.yml" # this will tell the plugin the TCP port and the IP that should request the commands, and also the IP to reply back to the ServerManager and the key to link the server to the transmission
 	
