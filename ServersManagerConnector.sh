@@ -23,8 +23,8 @@ function get_ip {
 		echo "$2" # WSL doesn't support external connections; assume it's being called locally
 	else
 		if [ "$1" != "127.0.0.1" ]; then
-			result=`ipcalc -c -4 -p "$1" | awk '{print $2}'`
-			if [ "$result" == "PRIVATE" ]; then
+			is_private=`echo "$1" | grep -P -c '^(10\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.|192\.168\.)'`
+			if [ $is_private -eq 1 ]; then
 				echo "$MACHINE_IP" # external private connections; send the machine IP
 			else
 				echo "$PUBLIC_IP" # external public connection; send public IP
