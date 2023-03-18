@@ -16,13 +16,19 @@ function extract_bits {
 # @param client IP
 # @param container IP
 # @env MACHINE_IP The machine IP
+# @env PUBLIC_IP The machine public IP
 # @env WSL_MODE Using WSL (1) or native Linux (0)
 function get_ip {
 	if [ $WSL_MODE -eq 1 ]; then
 		echo "$2" # WSL doesn't support external connections; assume it's being called locally
 	else
 		if [ "$1" != "127.0.0.1" ]; then
-			echo "$MACHINE_IP" # external connections; send the machine IP
+			result=`ipcalc -c -4 -p "$1" | awk '{print $2}'`
+			if [ "$result" == "PRIVATE" ]; then
+				echo "$MACHINE_IP" # external private connections; send the machine IP
+			else
+				echo "$PUBLIC_IP" # external public connection; send public IP
+			fi
 		else
 			echo "$2" # it's being called locally; provide docker IP
 		fi
