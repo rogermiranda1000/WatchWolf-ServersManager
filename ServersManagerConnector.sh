@@ -94,6 +94,11 @@ case $type in
 			fi
 			# ServersManager already reads the rest of the packet
 			
+
+			if [ $? -ne 0 ]; then
+				exit 1 # error while starting the server
+			fi
+
 			docker_container=`echo "$data" | cut -d$'\n' -f1`
 			port=`echo "$data" | cut -d$'\n' -f2`
 			msg_fifo=`echo "$data" | cut -d$'\n' -f3`
