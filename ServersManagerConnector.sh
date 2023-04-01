@@ -151,7 +151,7 @@ case $type in
 						fi
 						if [ -z "$error_log" ] && [ "$type" != "ERROR" ]; then
 							# not an error; just log
-							if [ -z "$USE_X" ]; then
+							if [ ! -z "$USE_X" ]; then
 								echo "> $msg" >&2
 							fi
 						fi
