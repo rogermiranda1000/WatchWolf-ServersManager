@@ -146,7 +146,9 @@ case $type in
 						fi
 						if [ -z "$error_log" ] && [ "$type" != "ERROR" ]; then
 							# not an error; just log
-							echo "> $msg" >&2
+							if [ -z "$USE_X" ]; then
+								echo "> $msg" >&2
+							fi
 						fi
 					fi
 					if [ ! -z "$socket" ]; then
