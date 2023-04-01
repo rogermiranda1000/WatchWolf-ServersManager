@@ -94,6 +94,11 @@ case $type in
 			fi
 			# ServersManager already reads the rest of the packet
 			
+
+			if [ $? -ne 0 ]; then
+				exit 1 # error while starting the server
+			fi
+
 			docker_container=`echo "$data" | cut -d$'\n' -f1`
 			port=`echo "$data" | cut -d$'\n' -f2`
 			msg_fifo=`echo "$data" | cut -d$'\n' -f3`
@@ -146,7 +151,9 @@ case $type in
 						fi
 						if [ -z "$error_log" ] && [ "$type" != "ERROR" ]; then
 							# not an error; just log
-							echo "> $msg" >&2
+							if [ ! -z "$USE_X" ]; then
+								echo "> $msg" >&2
+							fi
 						fi
 					fi
 					if [ ! -z "$socket" ]; then
