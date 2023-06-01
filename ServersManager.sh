@@ -101,6 +101,7 @@ function setup_server {
 	mkdir "$uuid/plugins"
 	echo "eula=true" > "$uuid/eula.txt" # eula
 	echo -e "online-mode=false\nwhite-list=true\nmotd=Minecraft test server\nmax-players=100\nserver-port=$6\nspawn-protection=0" > "$uuid/server.properties" # non-default server properties
+	echo -e "settings:\n  plugin-profiling: true" > "$uuid/bukkit.yml" # non-default timings settings
 	cp "server-types/$1/$2.jar" "$uuid/server.jar" # server type&version
 	
 	# copy plugins
