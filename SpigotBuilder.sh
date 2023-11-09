@@ -8,7 +8,7 @@ function getAllVersions {
 # @param server_version
 function get_java_version {
 	case `echo "$1" | grep -o -P '^\d+\.\d+'` in # get the first 2 numbers
-		"1.19" | "1.18" )
+		"1.20" | "1.19" | "1.18" )
 			return 17
 			;;
 		"1.17" )
