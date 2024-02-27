@@ -1,0 +1,15 @@
+version: "2.3"
+services:
+  servers-manager:
+    build: .
+    container_name: ServersManager
+    volumes:
+      - ./server-types:/servers-manager/server-types
+      - ./usual-plugins:/servers-manager/usual-plugins
+      - /var/run/docker.sock:/var/run/docker.sock # allow the docker to start other dockers
+    ports:
+      - "8000:8000"
+    environment:
+      - MACHINE_IP=${MACHINE_IP}
+      - PUBLIC_IP=${PUBLIC_IP}
+    #restart: unless-stopped
