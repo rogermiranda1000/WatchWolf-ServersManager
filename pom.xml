@@ -17,19 +17,10 @@
 
   <dependencies>
     <!-- WW-Core -->
-    <!--<dependency>
-        <groupId>dev.watchwolf</groupId>
-        <artifactId>watchwolf-core</artifactId>
-        <version>LATEST</version>
-        <scope>compile</scope>
-    </dependency>-->
-
     <dependency>
       <groupId>dev.watchwolf</groupId>
       <artifactId>watchwolf-core</artifactId>
       <version>0.3</version>
-      <scope>system</scope>
-      <systemPath>${basedir}/lib/watchwolf-core-0.3.jar</systemPath>
     </dependency>
 
     <!-- Docker -->
@@ -70,48 +61,71 @@
         </configuration>
       </plugin>
 
-      <!-- attach watchwolf-core -->
+      <!-- attach dependencies to the .jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>unpack-watchwolf</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>unpack</goal>
-            </goals>
-            <configuration>
-              <artifactItems>
-                <artifactItem>
-                  <groupId>dev.watchwolf</groupId>
-                  <artifactId>watchwolf-core</artifactId>
-                  <outputDirectory>${project.build.directory}/classes</outputDirectory>
-                </artifactItem>
-              </artifactItems>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
+        <version>2.3</version>
         <configuration>
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
           </descriptorRefs>
           <appendAssemblyId>false</appendAssemblyId>
         </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>single</goal></goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
 
-  <repositories>
+  <profiles>
+    <profile>
+      <id>local-ww-core-profile</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+
+      <!-- attach local watchwolf-core -->
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-install-plugin</artifactId>
+            <version>2.5.2</version>
+            <executions>
+              <execution>
+                <id>install-ww-core</id>
+                <phase>clean</phase>
+                <configuration>
+                  <file>${basedir}/lib/watchwolf-core-0.3.jar</file>
+                  <repositoryLayout>default</repositoryLayout>
+                  <groupId>dev.watchwolf</groupId>
+                  <artifactId>watchwolf-core</artifactId>
+                  <version>0.3</version>
+                  <packaging>jar</packaging>
+                  <generatePom>true</generatePom>
+                </configuration>
+                <goals>
+                  <goal>install-file</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
+  <!--<repositories>
     <repository>
       <id>watchwolf-tester-repo</id>
       <url>https://maven.pkg.github.com/rogermiranda1000/watchwolf-core</url>
     </repository>
-  </repositories>
+  </repositories>-->
 
   <!--<distributionManagement>
     <repository>

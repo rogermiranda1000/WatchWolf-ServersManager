@@ -1,18 +1,19 @@
 #!/bin/bash
 
+# default variables
+preclean=0
+
+# parse params
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --preclean) preclean=1 ;;
+        
+        *) echo "[e] Unknown parameter passed: $1" >&2 ; exit 1 ;;
+    esac
+    shift
+done
+
 # check for file dependencies
-servers_manager_path='.'
-if [ `ls "$servers_manager_path" | grep -c -P 'watchwolf-servers-manager-[\d\.]+\.jar'` -ne 1 ]; then
-    echo "[w] Unspecified WW-ServersManager .jar; trying to get it from target/ dir..."
-    servers_manager_path='../../target'
-
-    # try again
-    if [ `ls "$servers_manager_path" 2>&1 | grep -c -P 'watchwolf-servers-manager-[\d\.]+\.jar'` -ne 1 ]; then
-        echo "[e] Make sure to have the WW-ServersManager .jar in the current directory (and only one instance)"
-        exit 1
-    fi
-fi
-
 if [ `ls . | grep -c -P 'watchwolf-server-[\d\.]+\.jar'` -ne 1 ]; then
     echo "[e] Make sure to have the WW-Server .jar in the current directory (and only one instance)"
     exit 1
@@ -26,8 +27,20 @@ if [ `ls -l server-types 2>&1 | grep -c '^d'` -eq 0 ]; then
     echo "[w] You don't have any server type in the folder. To get the default server types check the following link:"
     echo "https://github.com/watch-wolf/WatchWolf/blob/main/WatchWolfSetup.sh"
 fi
-# all checks done; run
 
+# compile latest ServersManager
+echo "[v] Compiling ServersManager..."
+# TODO this requires maven; create a docker so it's deterministic
+if [ $preclean -eq 1 ]; then
+    mvn clean --file '../../pom.xml' # clean project & launch "clean" phase (if any)
+fi
+mvn compile assembly:single -DskipTests=true --file '../../pom.xml'
+if [ $? -ne 0 ]; then
+    echo "[e] Exception while compiling WW-ServersManager"
+    exit 1
+fi
+
+# all dependencies done; run
 # copy WW-Server as a usual plugin
 echo "[v] Moving WW-Server to the 'usual plugins' folder..."
 version=`ls . | grep -o -P '(?<=watchwolf-server-)[\d\.]+(?=\.jar)'`
@@ -35,8 +48,8 @@ cp "watchwolf-server-$version.jar" "usual-plugins/WatchWolf-$version-1.8-LATEST.
 
 # copy WW-ServersManager
 echo "[v] Preparing WW-ServersManager jar file..."
-version=`ls "$servers_manager_path" | grep -o -P '(?<=watchwolf-servers-manager-)[\d\.]+(?=\.jar)'`
-cp "$servers_manager_path/watchwolf-servers-manager-$version.jar" ./ServersManager.jar
+version=`ls '../../target' | grep -o -P '(?<=watchwolf-servers-manager-)[\d\.]+(?=\.jar)'`
+cp "../../target/watchwolf-servers-manager-$version.jar" ./ServersManager.jar
 
 # some utilities
 wsl_mode(){ echo "echo 'Hello world'" | powershell.exe >/dev/null 2>&1; return $?; }

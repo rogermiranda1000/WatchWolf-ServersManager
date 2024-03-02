@@ -16,7 +16,7 @@ public class ServerRequirements {
     private static PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
 
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles) throws IOException {
-        String serverFolder = "."; // TODO get tmp folder
+        String serverFolder = "./"; // TODO get tmp folder
 
         // TODO copy server type&version
         // TODO setup server config (worldType and other parameters)
@@ -45,5 +45,9 @@ public class ServerRequirements {
         }
 
         return serverFolder;
+    }
+
+    public static String getHashFromServerPath(String path) {
+        return ""; // TODO extract hash from tmp folder
     }
 }

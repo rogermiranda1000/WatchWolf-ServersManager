@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import dev.watchwolf.core.entities.WorldType;
@@ -33,9 +34,11 @@ public class ServersDockerManager {
         String path = ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles);
         int port = getMaxServerPort();
         int socketPort = port+1;
-        String serverId = serverType + "_" + serverVersion + "-" + path;
+        String serverId = serverType + "_" + serverVersion + "-" + ServerRequirements.getHashFromServerPath(path);
 
         String dockerCmd = getDockerCommand(null); // TODO specify ram
+
+        System.out.println("Starting " + serverType + " " + serverVersion + " server...");
 
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
@@ -49,7 +52,7 @@ public class ServersDockerManager {
                 .withPortBindings(PortBinding.parse(port + ":" + port + "/tcp"))
                 .withPortBindings(PortBinding.parse(port + ":" + port + "/udp"))
                 .withPortBindings(PortBinding.parse(socketPort + ":" + socketPort))
-                .withBinds(Bind.parse(path + ":/server"))
+                .withVolumes(Volume.parse(path + ":/server"))
                 .withWorkingDir("/server").exec();
         dockerClient.startContainerCmd(container.getId()).exec();
 
