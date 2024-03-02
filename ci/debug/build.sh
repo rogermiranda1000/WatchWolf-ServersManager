@@ -35,6 +35,7 @@ if [ $preclean -eq 1 ]; then
     mvn clean --file '../../pom.xml' # clean project & launch "clean" phase (if any)
 fi
 mvn compile assembly:single -DskipTests=true --file '../../pom.xml'
+
 if [ $? -ne 0 ]; then
     echo "[e] Exception while compiling WW-ServersManager"
     exit 1

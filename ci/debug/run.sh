@@ -7,3 +7,7 @@ get_ip(){ wsl_mode; if [ $? -eq 0 ]; then echo "(Get-NetIPAddress -AddressFamily
 # run
 echo "[v] Running..."
 export MACHINE_IP=$(get_ip) && export PUBLIC_IP=$(curl ifconfig.me) && docker compose up --no-build
+
+# remove docker
+echo "[v] Container done; removing it..."
+docker compose rm --force
