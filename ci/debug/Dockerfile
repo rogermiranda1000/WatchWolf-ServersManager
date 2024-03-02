@@ -1,5 +1,11 @@
 FROM openjdk:8
+
 ARG WSL_MODE=default
 ENV WSL_MODE=${WSL_MODE}
+
+RUN mkdir /servers
+ADD ServersManager.jar /servers
+WORKDIR /servers
+
 ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["echo \"WSL_MODE is : $WSL_MODE\" ; echo \"MACHINE_IP is : $MACHINE_IP\" ; echo \"PUBLIC_IP is : $PUBLIC_IP\""]
+CMD ["echo \"[v] WSL_MODE: $WSL_MODE\" ; echo \"[v] MACHINE_IP: $MACHINE_IP\" ; echo \"[v] PUBLIC_IP: $PUBLIC_IP\" ; java -cp ServersManager.jar dev/watchwolf/serversmanager/rpc/ServersManagerLocalImplementation"]

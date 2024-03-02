@@ -4,8 +4,8 @@ services:
     build: .
     container_name: ServersManager
     volumes:
-      - ./server-types:/servers-manager/server-types
-      - ./usual-plugins:/servers-manager/usual-plugins
+      - ./server-types:/servers/server-types
+      - ./usual-plugins:/servers/usual-plugins
       - /var/run/docker.sock:/var/run/docker.sock # allow the docker to start other dockers
     ports:
       - "8000:8000"

@@ -1,14 +1,19 @@
 #!/bin/bash
 
 # check for file dependencies
-files=`ls .`
+servers_manager_path='.'
+if [ `ls "$servers_manager_path" | grep -c -P 'watchwolf-servers-manager-[\d\.]+\.jar'` -ne 1 ]; then
+    echo "[w] Unspecified WW-ServersManager .jar; trying to get it from target/ dir..."
+    servers_manager_path='../../target'
 
-if [ `echo "$files" | grep -c -P 'watchwolf-servers-manager-[\d\.]+\.jar'` -ne 1 ]; then
-    echo "[e] Make sure to have the WW-ServersManager .jar in the current directory (and only one instance)"
-    exit 1
+    # try again
+    if [ `ls "$servers_manager_path" 2>&1 | grep -c -P 'watchwolf-servers-manager-[\d\.]+\.jar'` -ne 1 ]; then
+        echo "[e] Make sure to have the WW-ServersManager .jar in the current directory (and only one instance)"
+        exit 1
+    fi
 fi
 
-if [ `echo "$files" | grep -c -P 'watchwolf-server-[\d\.]+\.jar'` -ne 1 ]; then
+if [ `ls . | grep -c -P 'watchwolf-server-[\d\.]+\.jar'` -ne 1 ]; then
     echo "[e] Make sure to have the WW-Server .jar in the current directory (and only one instance)"
     exit 1
 fi
@@ -25,8 +30,13 @@ fi
 
 # copy WW-Server as a usual plugin
 echo "[v] Moving WW-Server to the 'usual plugins' folder..."
-version=`echo "$files" | grep -o -P '(?<=watchwolf-server-)[\d\.]+(?=\.jar)'`
+version=`ls . | grep -o -P '(?<=watchwolf-server-)[\d\.]+(?=\.jar)'`
 cp "watchwolf-server-$version.jar" "usual-plugins/WatchWolf-$version-1.8-LATEST.jar"
+
+# copy WW-ServersManager
+echo "[v] Preparing WW-ServersManager jar file..."
+version=`ls "$servers_manager_path" | grep -o -P '(?<=watchwolf-servers-manager-)[\d\.]+(?=\.jar)'`
+cp "$servers_manager_path/watchwolf-servers-manager-$version.jar" ./ServersManager.jar
 
 # some utilities
 wsl_mode(){ echo "echo 'Hello world'" | powershell.exe >/dev/null 2>&1; return $?; }

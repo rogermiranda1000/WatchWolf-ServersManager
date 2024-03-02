@@ -16,6 +16,7 @@
   </properties>
 
   <dependencies>
+    <!-- WW-Core -->
     <!--<dependency>
         <groupId>dev.watchwolf</groupId>
         <artifactId>watchwolf-core</artifactId>
@@ -30,10 +31,15 @@
       <scope>system</scope>
       <systemPath>${basedir}/lib/watchwolf-core-0.3.jar</systemPath>
     </dependency>
+
+    <!-- Docker -->
+    <dependency>
+      <groupId>com.github.docker-java</groupId>
+      <artifactId>docker-java</artifactId>
+      <version>3.3.6</version>
+    </dependency>
   </dependencies>
   <build>
-    <!--<finalName>WatchWolf-ServersManager-${project.version}</finalName>-->
-
     <pluginManagement>
       <plugins>
         <plugin>
@@ -70,7 +76,7 @@
         <artifactId>maven-dependency-plugin</artifactId>
         <executions>
           <execution>
-            <id>unpack</id>
+            <id>unpack-watchwolf</id>
             <phase>generate-sources</phase>
             <goals>
               <goal>unpack</goal>
@@ -87,14 +93,17 @@
           </execution>
         </executions>
       </plugin>
-    </plugins>
 
-    <resources>
-      <resource>
-        <directory>src/main/resources</directory>
-        <filtering>true</filtering>
-      </resource>
-    </resources>
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <configuration>
+          <descriptorRefs>
+            <descriptorRef>jar-with-dependencies</descriptorRef>
+          </descriptorRefs>
+          <appendAssemblyId>false</appendAssemblyId>
+        </configuration>
+      </plugin>
+    </plugins>
   </build>
 
   <repositories>
