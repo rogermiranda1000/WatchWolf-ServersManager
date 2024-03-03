@@ -2,11 +2,13 @@
 
 # default variables
 preclean=0
+num_processes=""
 
 # parse params
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --preclean) preclean=1 ;;
+		--threads) num_processes="$2"; shift ;;
         
         *) echo "[e] Unknown parameter passed: $1" >&2 ; exit 1 ;;
     esac
@@ -22,6 +24,7 @@ fi
 # create dependent folders
 mkdir server-types 2>/dev/null
 mkdir usual-plugins 2>/dev/null
+mkdir tmp 2>/dev/null
 
 if [ `ls -l server-types 2>&1 | grep -c '^d'` -eq 0 ]; then
     echo "[w] You don't have any server type in the folder. To get the default server types check the following link:"
@@ -34,7 +37,12 @@ echo "[v] Compiling ServersManager..."
 if [ $preclean -eq 1 ]; then
     mvn clean --file '../../pom.xml' # clean project & launch "clean" phase (if any)
 fi
-mvn compile assembly:single -DskipTests=true --file '../../pom.xml'
+if [ -z "$num_processes" ]; then
+    mvn compile assembly:single -DskipTests=true -Dmaven.test.skip=true --file '../../pom.xml'
+else
+    # number of threads specified
+    mvn compile assembly:single -DskipTests=true -Dmaven.test.skip=true -T "$num_processes" --file '../../pom.xml'
+fi
 
 if [ $? -ne 0 ]; then
     echo "[e] Exception while compiling WW-ServersManager"

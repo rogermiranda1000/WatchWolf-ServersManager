@@ -13,8 +13,7 @@ import dev.watchwolf.core.entities.files.plugins.Plugin;
 import dev.watchwolf.core.rpc.stubs.serversmanager.CapturedExceptionEvent;
 import dev.watchwolf.core.rpc.stubs.serversmanager.ServerStartedEvent;
 import dev.watchwolf.core.rpc.stubs.serversmanager.ServersManagerPetitions;
-import dev.watchwolf.core.utils.DockerUtilities;
-import dev.watchwolf.serversmanager.server.ServerRequirements;
+import dev.watchwolf.serversmanager.server.ServerJarUnavailableException;
 import dev.watchwolf.serversmanager.server.ServersDockerManager;
 
 import java.io.IOException;
@@ -39,7 +38,14 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
     @Override
     public String startServer(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles) throws IOException {
         System.out.println("Starting server...");
-        return ServersDockerManager.startServer(serverType, serverVersion, plugins, worldType, maps, configFiles);
+        try {
+            return new ServersDockerManager().startServer(serverType, serverVersion, plugins, worldType, maps, configFiles);
+        } catch (ServerJarUnavailableException ex) {
+            String errorMessage = "Couldn't start a " + serverType + " server, on " + serverVersion + ": " + ex.toString();
+            System.err.println(errorMessage);
+            capturedExceptionEventManager.capturedException(errorMessage);
+            return ""; // no server
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -53,6 +59,6 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
         ServersManagerPetitions serversManagerPetitions = new ServersManagerLocalImplementation(serverStartedEventManager, capturedExceptionEventManager);
         ArrayList<Plugin> plugins = new ArrayList<>();
 
-        serversManagerPetitions.startServer("Spigot", "1.20", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
+        serversManagerPetitions.startServer("Spigot", "1.19", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
     }
 }

@@ -2,3 +2,6 @@
 
 server-types/*
 usual-plugins/*
+
+# servers
+tmp/*

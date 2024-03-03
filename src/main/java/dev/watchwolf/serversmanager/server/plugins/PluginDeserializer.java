@@ -11,5 +11,5 @@ public interface PluginDeserializer {
      * @param plugin Plugin to deserialize
      * @param outDirectory Target directory
      */
-    void deserialize(Plugin plugin, File outDirectory) throws IOException;
+    void deserialize(Plugin plugin, File outDirectory) throws IOException,UnableToAchievePluginException;
 }

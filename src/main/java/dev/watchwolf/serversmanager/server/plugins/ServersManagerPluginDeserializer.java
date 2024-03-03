@@ -13,7 +13,7 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
      * @param outDirectory Target directory
      */
     @Override
-    public void deserialize(Plugin plugin, File outDirectory) throws IOException {
+    public void deserialize(Plugin plugin, File outDirectory) throws IOException,UnableToAchievePluginException {
         if (plugin instanceof FilePlugin) {
             ConfigFile filePlugin = ((FilePlugin)plugin).getFile();
             filePlugin.saveToFile(new File(outDirectory, filePlugin.getName() + "." + filePlugin.getExtension()));
