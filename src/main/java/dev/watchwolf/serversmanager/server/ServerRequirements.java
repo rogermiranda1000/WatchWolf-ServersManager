@@ -12,6 +12,8 @@ import dev.watchwolf.serversmanager.server.plugins.UnableToAchievePluginExceptio
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,11 +23,11 @@ public class ServerRequirements {
 
     private static final PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
 
-    private static void copyServerJar(String serverType, String serverVersion, String baseFolder, String targetFolder, String jarName) throws ServerJarUnavailableException,IOException {
-        File serverJar = new File(baseFolder, "server-types/" + serverType + "/" + serverVersion + ".jar");
-        if (!serverJar.isFile()) throw new ServerJarUnavailableException("Couldn't find " + serverType + " " + serverVersion + " on expected location (" + serverJar.toString() + ")");
+    private static void copyServerJar(String serverType, String serverVersion, Path baseFolder, Path targetFolder, String jarName) throws ServerJarUnavailableException,IOException {
+        Path serverJar = baseFolder.resolve("server-types/" + serverType + "/" + serverVersion + ".jar");
+        if (!Files.exists(serverJar)) throw new ServerJarUnavailableException("Couldn't find " + serverType + " " + serverVersion + " on expected location (" + serverJar.toString() + ")");
 
-        Files.copy(serverJar.toPath(), new File(targetFolder, jarName).toPath());
+        Files.copy(serverJar, targetFolder.resolve(jarName));
     }
 
     private static String createServerFolder() throws IOException {
@@ -48,7 +50,7 @@ public class ServerRequirements {
         String serverFolder = ServerRequirements.createServerFolder();
 
         // copy server (type&version)
-        ServerRequirements.copyServerJar(serverType, serverVersion, ".", serverFolder, jarName);
+        ServerRequirements.copyServerJar(serverType, serverVersion, Paths.get("."), Paths.get(serverFolder), jarName);
         // TODO setup server config (worldType and other parameters)
 
         // export worlds
