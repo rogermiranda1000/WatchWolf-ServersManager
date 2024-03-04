@@ -2,11 +2,13 @@ package dev.watchwolf.serversmanager.server;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+import dev.watchwolf.core.entities.WorldType;
+import dev.watchwolf.core.entities.files.ConfigFile;
+import dev.watchwolf.core.entities.files.plugins.Plugin;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
-import java.io.BufferedWriter;
-import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -15,9 +17,12 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 
 public class ServerRequirementsShould {
     public static final String TARGET_SERVER_JAR = "ServersManager.jar";
@@ -80,6 +85,72 @@ public class ServerRequirementsShould {
             // we expect a `ServerJarUnavailableException`
             if (ex instanceof InvocationTargetException) ex = ((InvocationTargetException)ex).getCause();
             if (!ex.getClass().equals(ServerJarUnavailableException.class)) throw ex;
+        }
+    }
+
+
+
+    //  ==========================
+    //    generateEulaFile tests
+    //  ==========================
+
+
+    private static Method getGenerateEulaFileMethod() throws NoSuchMethodException {
+        Method method = ServerRequirements.class.getDeclaredMethod("generateEulaFile", Path.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    @Test
+    void generateEulaFile() throws Exception {
+        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+        Path dstPath = givenACreatedDestinyFolder(fileSystem);
+        Path outFile = dstPath.resolve("eula.txt");
+
+        // act
+        getGenerateEulaFileMethod().invoke(null, dstPath);
+
+        // assert
+        assertTrue(Files.exists(outFile)); // the file should exist
+        assertEquals("eula=true", Files.readAllLines(outFile).get(0)); // eula should be accepted
+    }
+
+
+
+    //  =====================
+    //    setupFolder tests
+    //  =====================
+
+
+    @Test
+    void prepareAServerFolder() throws Exception {
+        try (MockedStatic<ServerRequirements> dummyStatic = Mockito.mockStatic(ServerRequirements.class,Mockito.CALLS_REAL_METHODS)) {
+            // arrange
+            String serverType = "Spigot";
+            String serverVersion = "1.20";
+            Collection<Plugin> plugins = new ArrayList<>();
+            WorldType worldType = WorldType.FLAT;
+            Collection<ConfigFile> maps = new ArrayList<>();
+            Collection<ConfigFile> configFiles = new ArrayList<>();
+            String jarName = TARGET_SERVER_JAR;
+
+            FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+            Path sourcePath = givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server(fileSystem),
+                    dstPath = givenACreatedDestinyFolder(fileSystem);
+            Path expectedJar = dstPath.resolve(TARGET_SERVER_JAR);
+
+            // mocking
+            dummyStatic.when(ServerRequirements::createServerFolder)
+                    .thenReturn(dstPath);
+            dummyStatic.when(() -> ServerRequirements.getGlobalServerFolder(anyString()))
+                    .thenReturn(""); // we don't care about the return
+
+            // act
+            ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, sourcePath);
+
+            // assert
+            assertTrue(Files.exists(expectedJar));
+            // TODO add verify calls to each of the expected methods to call
         }
     }
 }

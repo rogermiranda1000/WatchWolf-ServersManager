@@ -11,9 +11,11 @@ import dev.watchwolf.serversmanager.server.plugins.UnableToAchievePluginExceptio
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,13 +32,23 @@ public class ServerRequirements {
         Files.copy(serverJar, targetFolder.resolve(jarName));
     }
 
-    private static String createServerFolder() throws IOException {
+    static Path createServerFolder() throws IOException {
         String serverFolder = SHARED_TMP_FOLDER.replace("{pwd}", ".") + "/" + System.currentTimeMillis();
         Files.createDirectories(new File(serverFolder).toPath());
-        return serverFolder;
+        return Paths.get(serverFolder);
     }
 
-    private static String getGlobalServerFolder(String localServerFolder) {
+    /**
+     * To start a Minecraft server it is required that we accept the eula (via a file)
+     * @param targetFolder Out folder
+     * @throws IOException Failed to create the file
+     */
+    private static void generateEulaFile(Path targetFolder) throws IOException {
+        String acceptEulaString = "eula=true";
+        Files.write(targetFolder.resolve("eula.txt"), acceptEulaString.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+    }
+
+    static String getGlobalServerFolder(String localServerFolder) {
         String tmpFolderBase = SHARED_TMP_FOLDER;
         if (ServerRequirements.SHARED_TMP_FOLDER.contains("{pwd}")) {
             if (System.getenv("PARENT_PWD") == null) throw new NullPointerException("env variable PARENT_PWD undefined");
@@ -46,17 +58,18 @@ public class ServerRequirements {
         return tmpFolderBase + "/" + getHashFromServerPath(localServerFolder);
     }
 
-    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
-        String serverFolder = ServerRequirements.createServerFolder();
+    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName, Path copyServerContents) throws IOException {
+        Path serverFolder = ServerRequirements.createServerFolder();
 
         // copy server (type&version)
-        ServerRequirements.copyServerJar(serverType, serverVersion, Paths.get("."), Paths.get(serverFolder), jarName);
+        ServerRequirements.copyServerJar(serverType, serverVersion, copyServerContents, serverFolder, jarName);
+        generateEulaFile(serverFolder);
         // TODO setup server config (worldType and other parameters)
 
         // export worlds
         for (ConfigFile map : maps) {
             if (!(map instanceof ZipFile)) throw new IllegalArgumentException("All worlds must be zips; got `." + map.getExtension() + "` instead.");
-            ((ZipFile)map).exportToDirectory(new File(serverFolder));
+            ((ZipFile)map).exportToDirectory(serverFolder.toFile());
         }
 
         // export plugins
@@ -84,7 +97,11 @@ public class ServerRequirements {
         // TODO add WW-Server config file
 
         // we must return the global folder
-        return getGlobalServerFolder(serverFolder);
+        return getGlobalServerFolder(serverFolder.toString());
+    }
+
+    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
+        return setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, Paths.get("."));
     }
 
     public static String getHashFromServerPath(String path) {

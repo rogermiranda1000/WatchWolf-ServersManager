@@ -1,4 +1,4 @@
-FROM openjdk:8
+FROM openjdk:17
 
 ARG WSL_MODE=default
 ENV WSL_MODE=${WSL_MODE}
