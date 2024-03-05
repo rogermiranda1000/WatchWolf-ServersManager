@@ -131,8 +131,7 @@ java.lang.IllegalStateException: zip file closed
     at net.minecraft.server.dedicated.DedicatedServer.e(DedicatedServer.java:250) ~[spigot-1.20.4-R0.1-SNAPSHOT.jar:4042-Spigot-c198da2-7e43f3b]
     at net.minecraft.server.MinecraftServer.w(MinecraftServer.java:1000) ~[spigot-1.20.4-R0.1-SNAPSHOT.jar:4042-Spigot-c198da2-7e43f3b]
     at net.minecraft.server.MinecraftServer.lambda$0(MinecraftServer.java:304) ~[spigot-1.20.4-R0.1-SNAPSHOT.jar:4042-Spigot-c198da2-7e43f3b]
-    at java.lang.Thread.run(Thread.java:840) ~[?:?]
-""";
+    at java.lang.Thread.run(Thread.java:840) ~[?:?]""";
         final String log = """
 [08:48:35] [Server thread/INFO]: [MineableGems] Enabling MineableGems v1.11.3
 [08:48:36] [Server thread/INFO]: [MineIt-MineableGems] Enabling MineIt-MineableGems v1.1
@@ -184,24 +183,24 @@ java.lang.IllegalStateException: zip file closed
 [08:48:36] [Server thread/WARN]: 	at java.base/java.lang.Thread.run(Thread.java:840)
 [08:48:36] [Server thread/INFO]: [MineIt-MineableGems] Disabling MineIt-MineableGems v1.1
 [08:48:36] [Server thread/ERROR]: Error occurred while enabling MineIt-MineableGems v1.1 (Is it up to date?)
-""" + exception + """
-[08:48:36] [Server thread/INFO]: Done (21.650s)! For help, type "help"
-""";
+""" + exception + "\n[08:48:36] [Server thread/INFO]: Done (21.650s)! For help, type \"help\"";
 
         ThrowableServer uut = (ThrowableServer) getServer();
         uut.subscribeToExceptionEvents((msg) -> {
             synchronized (syncronizedObject) {
-                syncronizedObject.set(syncronizedObject.get() + "\n" + msg);
+                syncronizedObject.set(msg);
                 syncronizedObject.notify();
             }
         });
 
         // exceptions are processed through the regular messages
-        uut.raiseServerMessageEvent(log);
+        for (String logLine : log.split("\n")) {
+            uut.raiseServerMessageEvent(logLine); // we'll get the messagess one by one
+        }
 
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
-            assertEquals(exception, syncronizedObject.get());
+            assertEquals(exception, syncronizedObject.get(), "Strings don't match:\n  Expecting:\n" + exception + "\n  Got:\n" + syncronizedObject.get());
         }
     }
 }
