@@ -2,11 +2,13 @@
 
 # default variables
 preclean=0
+skip_tests="true"
 
 # parse params
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --preclean) preclean=1 ;;
+        --include-tests) skip_tests="false" ;;
         
         *) echo "[e] Unknown parameter passed: $1" >&2 ; exit 1 ;;
     esac
@@ -37,7 +39,7 @@ local_maven_repos_path="$HOME/.m2"
 if [ $preclean -eq 1 ]; then
     docker run -it --rm -v "$base_path":"/compile" -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn clean --file '/compile' # clean project & launch "clean" phase (if any)
 fi
-docker run -it --rm -v "$base_path":"/compile" -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn compile assembly:single -DskipTests=true -Dmaven.test.skip=true --file '/compile'
+docker run -it --rm -v "$base_path":"/compile" -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn compile assembly:single -DskipTests=true -Dmaven.test.skip="$skip_tests" --file '/compile'
 
 if [ $? -ne 0 ]; then
     echo "[e] Exception while compiling WW-ServersManager"
