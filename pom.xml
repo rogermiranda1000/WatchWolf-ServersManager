@@ -123,6 +123,7 @@
         <version>3.2.5</version>
         <configuration>
           <skipTests>false</skipTests>
+          <redirectTestOutputToFile>true</redirectTestOutputToFile>
           <includes>
             <include>**/*Should.java</include>
           </includes>
@@ -147,6 +148,7 @@
             </goals>
             <configuration>
               <skipTests>true</skipTests>
+              <redirectTestOutputToFile>true</redirectTestOutputToFile>
             </configuration>
           </execution>
         </executions>

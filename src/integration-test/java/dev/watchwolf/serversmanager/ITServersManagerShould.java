@@ -11,13 +11,24 @@ import dev.watchwolf.serversmanager.server.instantiator.DockerizedServerInstanti
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ITServersManagerShould {
     @Test
     public void startAServer() throws Exception {
+        final AtomicBoolean started = new AtomicBoolean(false);
+
         ServerStartedEvent serverStartedEventManager = () -> {
             System.out.println("[!] Server started");
+            synchronized (started) {
+                started.set(true);
+                started.notify();
+            }
         };
+
         CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
             System.err.println("[e] Error: " + err);
         };
@@ -26,7 +37,15 @@ public class ITServersManagerShould {
         ServersManagerPetitions serversManagerPetitions = new ServersManagerLocalImplementation(serversManager, serverStartedEventManager, capturedExceptionEventManager);
         ArrayList<Plugin> plugins = new ArrayList<>();
 
-        serversManagerPetitions.startServer("Spigot", "1.19", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
-        Thread.sleep(15_000);
+        // start the server
+        String serverIp = serversManagerPetitions.startServer("Spigot", "1.19", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
+        assertNotEquals("", serverIp, "Expected a server IP; got error instead");
+
+        // wait for server to notify
+        int timeout = 120_000;
+        synchronized (started) {
+            started.wait(timeout);
+            assertTrue(started.get(), "Didn't get server started event");
+        }
     }
 }

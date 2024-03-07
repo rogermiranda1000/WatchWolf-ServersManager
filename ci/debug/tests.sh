@@ -32,7 +32,7 @@ get_ip(){ wsl_mode; if [ $? -eq 0 ]; then echo "(Get-NetIPAddress -AddressFamily
 # run the tests
 if [ $unit -eq 1 ]; then
     # run unit tests
-    docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn test -DskipTests=false -DskipUTs=false -DskipITs=true --file '/compile'
+    docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn test -DskipTests=false -DskipUTs=false -DskipITs=true -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
     result=$?
 
     # Convert xml reports into html
@@ -49,7 +49,7 @@ if [ $integration -eq 1 ]; then
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
                     -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
                     -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                    \
-                    maven:3.8.3-openjdk-17 mvn failsafe:integration-test failsafe:verify --file '/compile'
+                    maven:3.8.3-openjdk-17 mvn failsafe:integration-test failsafe:verify -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
     result=$?
 
     # Convert xml reports into html
