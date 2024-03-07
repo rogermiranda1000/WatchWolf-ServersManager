@@ -21,7 +21,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ServerRequirements {
-    public static final String SHARED_TMP_FOLDER = "{pwd}/tmp";
+    public static final String SHARED_TMP_FOLDER = "{pwd}/{offset}/tmp";
 
     private static final PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
 
@@ -33,7 +33,8 @@ public class ServerRequirements {
     }
 
     static Path createServerFolder() throws IOException {
-        String serverFolder = SHARED_TMP_FOLDER.replace("{pwd}", ".") + "/" + System.currentTimeMillis();
+        String offset = (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT");
+        String serverFolder = SHARED_TMP_FOLDER.replace("{pwd}", ".").replace("{offset}", offset) + "/" + System.currentTimeMillis();
         Files.createDirectories(new File(serverFolder).toPath());
         return Paths.get(serverFolder);
     }
@@ -50,10 +51,14 @@ public class ServerRequirements {
 
     static String getGlobalServerFolder(String localServerFolder) {
         String tmpFolderBase = SHARED_TMP_FOLDER;
+
         if (ServerRequirements.SHARED_TMP_FOLDER.contains("{pwd}")) {
             if (System.getenv("PARENT_PWD") == null) throw new NullPointerException("env variable PARENT_PWD undefined");
             tmpFolderBase = tmpFolderBase.replace("{pwd}", System.getenv("PARENT_PWD"));
         }
+
+        String offset = (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT");
+        tmpFolderBase = tmpFolderBase.replace("{offset}", offset);
 
         return tmpFolderBase + "/" + getHashFromServerPath(localServerFolder);
     }
@@ -101,7 +106,7 @@ public class ServerRequirements {
     }
 
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
-        return setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, Paths.get("."));
+        return setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, Paths.get( (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT") ));
     }
 
     public static String getHashFromServerPath(String path) {

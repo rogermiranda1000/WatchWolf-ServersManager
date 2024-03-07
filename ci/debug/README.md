@@ -13,6 +13,6 @@ Run the built docker using the `./run.sh` script.
 
 #### Run system tests
 
-To run the system tests first build with `./build.sh --preclean --include-tests`, and then use `./tests.sh --unit` to run the unit tests, or `./tests.sh --system` for the system tests.
+To run the system tests first build with `./build.sh --preclean --include-tests`, and then use `./tests.sh --unit` to run the unit tests, or `./tests.sh --integration` for the integration tests.
 
 You'll find the reports on `target/site`.

@@ -58,6 +58,7 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
     }
 
     public static void main(String[] args) throws IOException {
+        // TODO must redirect main; execute RPC setup
         ServerStartedEvent serverStartedEventManager = () -> {
             System.out.println("[!] Server started");
         };
