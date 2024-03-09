@@ -17,17 +17,21 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ITServersManagerShould {
+    public static class LocalIpRequesteeMock implements RequesteeIpGetter {
+        @Override
+        public InetSocketAddress getRequesteeIp() {
+            return new InetSocketAddress("127.0.0.1", 45000);
+        }
+    }
+
     public static String startServer(ServerStartedEvent onServerStart) throws IOException {
         CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
             System.err.println("[e] Error: " + err);
         };
 
-        RequesteeIpGetter ipGetter = mock(RequesteeIpGetter.class);
-        when(ipGetter.getRequesteeIp()).thenReturn(new InetSocketAddress("127.0.0.1", 45000));
+        RequesteeIpGetter ipGetter = new LocalIpRequesteeMock();
 
         ServersManager serversManager = new ServersManager(new DockerizedServerInstantiator());
         ServersManagerPetitions serversManagerPetitions = new ServersManagerLocalImplementation(serversManager, onServerStart, capturedExceptionEventManager, ipGetter);

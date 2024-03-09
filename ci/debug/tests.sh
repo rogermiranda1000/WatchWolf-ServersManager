@@ -28,6 +28,8 @@ local_maven_repos_path="$HOME/.m2"
 wsl_mode(){ echo "echo 'Hello world'" | powershell.exe >/dev/null 2>&1; return $?; }
 get_ip(){ wsl_mode; if [ $? -eq 0 ]; then echo "(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress" | powershell.exe 2>/dev/null | tail -n2 | head -n1; else hostname -I | awk '{print $1}';fi }
 
+# clear
+docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn clean --file '/compile'
 
 # run the tests
 if [ $unit -eq 1 ]; then
@@ -49,7 +51,7 @@ if [ $integration -eq 1 ]; then
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
                     -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
                     -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                    \
-                    maven:3.8.3-openjdk-17 mvn failsafe:integration-test failsafe:verify -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
+                    maven:3.8.3-openjdk-17 mvn verify -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
     result=$?
 
     # Convert xml reports into html

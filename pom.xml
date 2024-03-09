@@ -48,13 +48,6 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>org.junit.platform</groupId>
-      <artifactId>junit-platform-launcher</artifactId>
-      <version>1.7.2</version>
-      <scope>test</scope>
-    </dependency>
-
     <!-- FS mock -->
     <dependency>
       <groupId>com.google.jimfs</groupId>
@@ -92,21 +85,11 @@
     </pluginManagement>
 
     <plugins>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.8.1</version>
-        <configuration>
-          <source>${maven.compiler.source}</source>
-          <target>${maven.compiler.target}</target>
-        </configuration>
-      </plugin>
-
       <!-- Adds source and resource directories to our build -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>build-helper-maven-plugin</artifactId>
-        <version>1.9.1</version>
+        <version>3.5.0</version>
         <executions>
           <execution>
             <id>add-integration-test-sources</id>
@@ -116,7 +99,7 @@
             </goals>
             <configuration>
               <sources>
-                <source>src/integration-test/java</source>
+                <source>${project.basedir}/src/integration-test/java/</source>
               </sources>
             </configuration>
           </execution>
@@ -129,7 +112,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
-          <skipTests>false</skipTests>
+          <skipTests>${skip.unit.tests}</skipTests>
           <redirectTestOutputToFile>true</redirectTestOutputToFile>
           <includes>
             <include>**/*Should.java</include>
@@ -154,18 +137,28 @@
               <goal>verify</goal>
             </goals>
             <configuration>
-              <skipTests>true</skipTests>
+              <skipTests>${skip.integration.tests}</skipTests>
               <redirectTestOutputToFile>true</redirectTestOutputToFile>
             </configuration>
           </execution>
         </executions>
       </plugin>
 
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.12.1</version>
+        <configuration>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+        </configuration>
+      </plugin>
+
       <!-- attach dependencies to the .jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-assembly-plugin</artifactId>
-        <version>2.3</version>
+        <version>3.6.0</version>
         <configuration>
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
@@ -188,6 +181,12 @@
       <activation>
         <activeByDefault>true</activeByDefault>
       </activation>
+
+      <properties>
+        <!-- No unit tests nor integration tests are run -->
+        <skip.integration.tests>false</skip.integration.tests>
+        <skip.unit.tests>false</skip.unit.tests>
+      </properties>
 
       <!-- attach local watchwolf-core -->
       <build>
@@ -217,6 +216,16 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+
+    <!-- The Configuration of the integration-test profile -->
+    <profile>
+      <id>integration-test</id>
+      <properties>
+        <!-- Only integration tests are run when the integration-test profile is active -->
+        <skip.integration.tests>false</skip.integration.tests>
+        <skip.unit.tests>true</skip.unit.tests>
+      </properties>
     </profile>
   </profiles>
 
