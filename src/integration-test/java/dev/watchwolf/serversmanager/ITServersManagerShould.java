@@ -19,6 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ITServersManagerShould {
+    public static final int MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT = 7;
+
     public static class LocalIpRequesteeMock implements RequesteeIpGetter {
         @Override
         public InetSocketAddress getRequesteeIp() {
@@ -59,7 +61,7 @@ public class ITServersManagerShould {
         assertNotEquals("", serverIp, "Expected a server IP; got error instead");
 
         // wait for server to notify
-        int timeout = 15*60_000; // 15 minutes timeout
+        int timeout = MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT*60_000;
         synchronized (started) {
             started.wait(timeout);
             assertTrue(started.get(), "Didn't get server started event");

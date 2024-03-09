@@ -50,8 +50,8 @@ if [ $integration -eq 1 ]; then
     # run integration tests
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
                     -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
-                    -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                    \
-                    maven:3.8.3-openjdk-17 mvn verify -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
+                    -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
+                    maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
     result=$?
 
     # Convert xml reports into html
