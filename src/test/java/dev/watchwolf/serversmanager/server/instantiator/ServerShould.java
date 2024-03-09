@@ -3,7 +3,7 @@ package dev.watchwolf.serversmanager.server.instantiator;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -31,12 +31,12 @@ public class ServerShould {
 
     @Test
     void notifyServerStartedEvent() throws Exception {
-        final AtomicBoolean syncronizedObject = new AtomicBoolean(false);
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
 
         Server uut = getServer();
         uut.subscribeToServerStartedEvents(() -> {
             synchronized (syncronizedObject) {
-                syncronizedObject.set(true);
+                syncronizedObject.incrementAndGet();
                 syncronizedObject.notify();
             }
         });
@@ -46,25 +46,25 @@ public class ServerShould {
             try {
                 syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
             } catch (InterruptedException ignored) {}
-            assertFalse(syncronizedObject.get(), "Event was raised before invoking the function");
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
         }
 
         uut.raiseServerStartedEvent();
 
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
-            assertTrue(syncronizedObject.get(), "Event was not risen");
+            assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
         }
     }
 
     @Test
     void notifyServerStoppedEvent() throws Exception {
-        final AtomicBoolean syncronizedObject = new AtomicBoolean(false);
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
 
         Server uut = getServer();
         uut.subscribeToServerStoppedEvents(() -> {
             synchronized (syncronizedObject) {
-                syncronizedObject.set(true);
+                syncronizedObject.incrementAndGet();
                 syncronizedObject.notify();
             }
         });
@@ -74,14 +74,14 @@ public class ServerShould {
             try {
                 syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
             } catch (InterruptedException ignored) {}
-            assertFalse(syncronizedObject.get(), "Event was raised before invoking the function");
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
         }
 
         uut.raiseServerStoppedEvent();
 
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
-            assertTrue(syncronizedObject.get(), "Event was not risen");
+            assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
         }
     }
 
@@ -145,6 +145,35 @@ public class ServerShould {
             for (int index = 0; index < sending.length; index++) {
                 assertEquals(sending[index], syncronizedObject.get(index));
             }
+        }
+    }
+
+    @Test
+    void interpretAndNotifyServerStartedEvent() throws Exception {
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
+
+        Server uut = getServer();
+        uut.subscribeToServerStartedEvents(() -> {
+            synchronized (syncronizedObject) {
+                syncronizedObject.incrementAndGet();
+                syncronizedObject.notify();
+            }
+        });
+
+        synchronized (syncronizedObject) {
+            // we didn't launch the event, so nothing should invoke
+            try {
+                syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
+            } catch (InterruptedException ignored) {}
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
+        }
+
+        // server started is interpreted by messages
+        uut.raiseServerMessageEvent("[14:51:38] [Server thread/INFO]: Done (6.328s)! For help, type \"help\"");
+
+        synchronized (syncronizedObject) {
+            syncronizedObject.wait(WAIT_TIMEOUT);
+            assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
         }
     }
 }

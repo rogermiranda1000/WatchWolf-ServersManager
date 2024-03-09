@@ -1,5 +1,7 @@
 package dev.watchwolf.serversmanager.server.ip;
 
+import java.net.InetSocketAddress;
+
 public interface IpManager {
     /**
      * Docker behaves differently depending
@@ -7,5 +9,5 @@ public interface IpManager {
      * @param callerIp
      * @return
      */
-    String getIp(String originalIp, String callerIp);
+    String getIp(String originalIp, InetSocketAddress callerIp);
 }

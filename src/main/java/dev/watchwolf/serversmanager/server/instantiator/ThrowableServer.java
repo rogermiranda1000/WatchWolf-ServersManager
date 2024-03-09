@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.regex.Pattern;
 
-public class ThrowableServer extends Server implements ServerMessageEvent {
+public class ThrowableServer extends Server {
     private final Server wrappedServer;
     private final Collection<CapturedExceptionEvent> capturedExceptionListeners;
     private StringBuilder exception;
@@ -19,8 +19,6 @@ public class ThrowableServer extends Server implements ServerMessageEvent {
         this.wrappedServer = s;
         this.capturedExceptionListeners = new ArrayList<>();
         this.exception = null;
-
-        this.subscribeToServerMessageEvents(this);
     }
 
     void raiseExceptionEvent(String msg) {
@@ -56,9 +54,12 @@ public class ThrowableServer extends Server implements ServerMessageEvent {
 
     @Override
     public void onMessageEvent(String msg) {
+        // invoke the original event handler
+        super.onMessageEvent(msg);
+
         if (this.exception == null) {
             // listen for new exceptions
-            Pattern startingExceptionPattern = Pattern.compile("\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/ERROR\\]: ");
+            Pattern startingExceptionPattern = Pattern.compile("^\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/ERROR\\]: ");
             if (startingExceptionPattern.matcher(msg).find()) {
                 // following there's an exception
                 this.exception = new StringBuilder();
@@ -66,7 +67,7 @@ public class ThrowableServer extends Server implements ServerMessageEvent {
         }
         else {
             // did the exception finish?
-            Pattern finishingExceptionPattern = Pattern.compile("\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/");
+            Pattern finishingExceptionPattern = Pattern.compile("^\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/");
             if (finishingExceptionPattern.matcher(msg).find()) {
                 // exception completed; launch event
                 this.raiseExceptionEvent(this.exception.toString());

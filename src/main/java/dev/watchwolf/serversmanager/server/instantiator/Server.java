@@ -6,9 +6,10 @@ import dev.watchwolf.server.ServerStopNotifier;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.regex.Pattern;
 
-public class Server {
-    private final String ip;
+public class Server implements ServerMessageEvent {
+    private String ip;
     protected final Collection<ServerStartedEvent> serverStartedListeners;
     protected final Collection<ServerStopNotifier> serverStoppedListeners;
     protected final Collection<ServerMessageEvent> serverMessageListeners;
@@ -18,6 +19,8 @@ public class Server {
         this.serverStartedListeners = new ArrayList<>();
         this.serverStoppedListeners = new ArrayList<>();
         this.serverMessageListeners = new ArrayList<>();
+
+        this.subscribeToServerMessageEvents(this);
     }
 
     void raiseServerStartedEvent() throws IOException {
@@ -30,6 +33,10 @@ public class Server {
 
     void raiseServerMessageEvent(String msg) {
         for (ServerMessageEvent e : this.serverMessageListeners) e.onMessageEvent(msg);
+    }
+
+    public void setIp(String ip) {
+        this.ip = ip;
     }
 
     public String getIp() {
@@ -49,5 +56,17 @@ public class Server {
     public Server subscribeToServerMessageEvents(ServerMessageEvent subscriber) {
         this.serverMessageListeners.add(subscriber);
         return this;
+    }
+
+    @Override
+    public void onMessageEvent(String msg) {
+        Pattern serverStartedPattern = Pattern.compile("^\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/INFO\\]: Done \\([^)]+\\)! For help, type \"help\"");
+        if (serverStartedPattern.matcher(msg).find()) {
+            try {
+                this.raiseServerStartedEvent(); // server started
+            } catch (IOException ex) {
+                System.err.println(ex.toString());
+            }
+        }
     }
 }

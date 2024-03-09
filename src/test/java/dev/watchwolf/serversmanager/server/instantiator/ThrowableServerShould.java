@@ -2,8 +2,8 @@ package dev.watchwolf.serversmanager.server.instantiator;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -47,12 +47,12 @@ public class ThrowableServerShould extends ServerShould {
 
     @Test
     void notifyServeStoppedEventsDefinedOnWrapper() throws Exception {
-        final AtomicBoolean syncronizedObject = new AtomicBoolean(false);
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
 
         Server uut = super.getServer();
         uut.subscribeToServerStoppedEvents(() -> {
             synchronized (syncronizedObject) {
-                syncronizedObject.set(true);
+                syncronizedObject.incrementAndGet();
                 syncronizedObject.notify();
             }
         });
@@ -64,14 +64,14 @@ public class ThrowableServerShould extends ServerShould {
             try {
                 syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
             } catch (InterruptedException ignored) {}
-            assertFalse(syncronizedObject.get(), "Event was raised before invoking the function");
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
         }
 
         uut.raiseServerStoppedEvent();
 
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
-            assertTrue(syncronizedObject.get(), "Event was not risen");
+            assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
         }
     }
 

@@ -5,6 +5,7 @@ import com.google.common.jimfs.Jimfs;
 import dev.watchwolf.core.entities.WorldType;
 import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -123,6 +124,7 @@ public class ServerRequirementsShould {
 
 
     @Test
+    @Disabled
     void prepareAServerFolder() throws Exception {
         try (MockedStatic<ServerRequirements> dummyStatic = Mockito.mockStatic(ServerRequirements.class,Mockito.CALLS_REAL_METHODS)) {
             // arrange

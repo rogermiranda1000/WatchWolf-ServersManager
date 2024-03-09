@@ -8,12 +8,9 @@ import dev.watchwolf.core.rpc.stubs.serversmanager.ServerStartedEvent;
 import dev.watchwolf.core.rpc.stubs.serversmanager.ServersManagerPetitions;
 import dev.watchwolf.serversmanager.server.ServerJarUnavailableException;
 import dev.watchwolf.serversmanager.server.ServersManager;
-import dev.watchwolf.serversmanager.server.instantiator.DockerizedServerInstantiator;
-import dev.watchwolf.serversmanager.server.instantiator.Server;
 import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -23,11 +20,13 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
     private final ServersManager serversManager;
     private final ServerStartedEvent serverStartedEventManager;
     private final CapturedExceptionEvent capturedExceptionEventManager;
+    private final RequesteeIpGetter requesteeIpGetter;
 
-    public ServersManagerLocalImplementation(ServersManager serversManager, ServerStartedEvent serverStartedEventManager, CapturedExceptionEvent capturedExceptionEventManager) {
+    public ServersManagerLocalImplementation(ServersManager serversManager, ServerStartedEvent serverStartedEventManager, CapturedExceptionEvent capturedExceptionEventManager, RequesteeIpGetter ipGetter) {
         this.serversManager = serversManager;
         this.serverStartedEventManager = serverStartedEventManager;
         this.capturedExceptionEventManager = capturedExceptionEventManager;
+        this.requesteeIpGetter = ipGetter;
     }
 
     @Override
@@ -37,7 +36,8 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
     public String startServer(final String serverType, final String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles) throws IOException {
         System.out.println("Starting server...");
         try {
-            final ThrowableServer server = this.serversManager.startServer(serverType, serverVersion, plugins, worldType, maps, configFiles);
+            // requesteeIpGetter will work because `startServer` gets called on a syncronized environment (by `forwardCall`), so we'll have the IP of the client calling this function
+            final ThrowableServer server = this.serversManager.startServer(serverType, serverVersion, plugins, worldType, maps, configFiles, this.requesteeIpGetter.getRequesteeIp());
 
             server.subscribeToServerStartedEvents(this.serverStartedEventManager);
             server.subscribeToServerStoppedEvents(() -> {
@@ -59,17 +59,5 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
 
     public static void main(String[] args) throws IOException {
         // TODO must redirect main; execute RPC setup
-        ServerStartedEvent serverStartedEventManager = () -> {
-            System.out.println("[!] Server started");
-        };
-        CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
-            System.err.println("[e] Error: " + err);
-        };
-
-        ServersManager serversManager = new ServersManager(new DockerizedServerInstantiator());
-        ServersManagerPetitions serversManagerPetitions = new ServersManagerLocalImplementation(serversManager, serverStartedEventManager, capturedExceptionEventManager);
-        ArrayList<Plugin> plugins = new ArrayList<>();
-
-        serversManagerPetitions.startServer("Spigot", "1.19", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
     }
 }

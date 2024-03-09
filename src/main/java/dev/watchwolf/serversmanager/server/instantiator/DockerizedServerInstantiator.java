@@ -1,17 +1,41 @@
 package dev.watchwolf.serversmanager.server.instantiator;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.StartContainerCmd;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.PortBinding;
+import com.github.dockerjava.api.model.StreamType;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
+import com.github.dockerjava.core.command.LogContainerResultCallback;
 import dev.watchwolf.serversmanager.server.ServerRequirements;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class DockerizedServerInstantiator implements ServerInstantiator {
+    public static class StdioAdapter extends ResultCallback.Adapter<Frame> {
+        private final String serverId;
+
+        public StdioAdapter(String serverId) {
+            this.serverId = serverId;
+        }
+
+        @Override
+        public void onNext(Frame object) {
+            this.onLineGot(new String(object.getPayload()), object.getStreamType().equals(StreamType.STDERR));
+        }
+
+        private void onLineGot(String line, boolean stderr) {
+            System.out.println("[" + this.serverId + "] " + (stderr ? "(err) " : "") + line);
+        }
+    }
+
     private static String getDockerCommand(String jarName, String ram) {
         String ramParam = "-XX:MaxRAMFraction=1"; // unlimited memory
         if (ram != null) {
@@ -27,11 +51,25 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * @return Next port that ServersManager will have to use
      */
     private static synchronized int getNextServerPort() {
-        return 25565;
+        return 25565; // TODO get port
     }
 
-    private static String getStartedServerIp(String dockerId, String callerIp) {
-        return ""; // TODO ask IpManager
+    private static String getStartedServerIp(String dockerId) {
+        return "127.0.0.1:25565"; // TODO get port
+    }
+
+    /**
+     * Attaches Docker output to a callback method
+     * @param dockerClient Docker client
+     * @param container Container to attach
+     * @param callback Object with the callback method to call
+     */
+    private static void attachStdio(DockerClient dockerClient, CreateContainerResponse container, ResultCallback<Frame> callback) {
+        dockerClient.logContainerCmd(container.getId())
+                .withStdOut(true)
+                .withStdErr(true)
+                .withFollowStream(true)
+                .exec(callback);
     }
 
     @Override
@@ -40,7 +78,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         String dockerCmd = getDockerCommand(entrypoint, null); // TODO specify ram
 
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
-        DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
+        final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
 
         CreateContainerResponse container;
         StartContainerCmd cnt;
@@ -64,13 +102,17 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             cnt.exec();
         }
 
-        Server r = new Server(DockerizedServerInstantiator.getStartedServerIp(cnt.getContainerId(), null)); // TODO caller
+        DockerizedServerInstantiator.attachStdio(dockerClient, container, new StdioAdapter(serverId));
 
+        Server r = new Server(DockerizedServerInstantiator.getStartedServerIp(cnt.getContainerId()));
+
+        // we need to perform some cleanup if the server stops
         r.subscribeToServerStoppedEvents(() -> {
-            // TODO on close run:
-            // dockerClient.killContainerCmd(container.getId()).exec();
-            // dockerClient.removeContainerCmd(container.getId()).exec();
-            // and clear the folder
+            // on server close, close the container
+            try {
+                dockerClient.killContainerCmd(container.getId()).exec();
+            } catch (Exception ignore) {}
+            dockerClient.removeContainerCmd(container.getId()).exec();
         });
 
         // TODO launch server stopped event when stopped
