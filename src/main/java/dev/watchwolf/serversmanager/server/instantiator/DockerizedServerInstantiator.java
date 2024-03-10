@@ -19,20 +19,37 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class DockerizedServerInstantiator implements ServerInstantiator {
-    public static class StdioAdapter extends ResultCallback.Adapter<Frame> {
+    public interface StdioCallback {
+        void onLineGot(String line, boolean stderr);
+    }
+
+    public static class StdioAdapter extends ResultCallback.Adapter<Frame> implements StdioCallback {
         private final String serverId;
+        private final StdioCallback callback;
 
         public StdioAdapter(String serverId) {
             this.serverId = serverId;
+            this.callback = (String line, boolean stderr) -> {
+                System.out.println("[" + this.serverId + "] " + (stderr ? "(err) " : "") + line);
+            };
+        }
+
+        public StdioAdapter(String serverId, StdioCallback callback) {
+            this.serverId = serverId;
+            this.callback = callback;
         }
 
         @Override
         public void onNext(Frame object) {
-            this.onLineGot(new String(object.getPayload()), object.getStreamType().equals(StreamType.STDERR));
+            String line = new String(object.getPayload());
+            if (!line.endsWith("\n")) System.err.println("Expected full line (ending with '\n'), got '" + line + "' instead");
+            else line = line.substring(0, line.length()-1);
+            this.onLineGot(line, object.getStreamType().equals(StreamType.STDERR));
         }
 
-        private void onLineGot(String line, boolean stderr) {
-            System.out.println("[" + this.serverId + "] " + (stderr ? "(err) " : "") + line);
+        @Override
+        public void onLineGot(String line, boolean stderr) {
+            this.callback.onLineGot(line, stderr);
         }
     }
 
