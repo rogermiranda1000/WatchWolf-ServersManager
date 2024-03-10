@@ -3,18 +3,19 @@ package dev.watchwolf.serversmanager.server.instantiator;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.model.Frame;
+import com.github.dockerjava.api.model.PortBinding;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ITDockerizedServerInstantiatorShould {
-    private static final int DEFAULT_PORT = 8001;
+    private static final int DEFAULT_PORT = DockerizedServerInstantiator.BASE_PORT;
 
     /**
      * For each Docker container, what's the increment to DEFAULT_PORT?
@@ -42,12 +43,16 @@ public class ITDockerizedServerInstantiatorShould {
     // Helper methods
     //
 
-    private static CreateContainerResponse createMcServerContainer(String cmd) {
+    private static CreateContainerResponse createMcServerContainer(String cmd, int ...ports) {
         String serverId = "MC_Server-" + System.currentTimeMillis();
+
+        ArrayList<PortBinding> bindings = new ArrayList<>();
+        for (int port : ports) bindings.add(PortBinding.parse(port + ":" + port));
 
         CreateContainerResponse container = getDockerClient().createContainerCmd("openjdk:8")
                 .withName(serverId)
                 .withEntrypoint("/bin/sh", "-c")
+                .withPortBindings(bindings)
                 .withCmd(cmd).exec();
 
         getDockerClient().startContainerCmd(container.getId()).exec();
@@ -55,8 +60,8 @@ public class ITDockerizedServerInstantiatorShould {
         return container;
     }
 
-    private static CreateContainerResponse createDummyMcServerContainer() {
-        return createMcServerContainer("sleep 20m");
+    private static CreateContainerResponse createDummyMcServerContainer(int ...ports) {
+        return createMcServerContainer("sleep 20m", ports);
     }
 
     private static void killContainer(CreateContainerResponse container) {
@@ -102,7 +107,7 @@ public class ITDockerizedServerInstantiatorShould {
     void returnNextPortWhenOneDockerStarted() throws Exception {
         CreateContainerResponse container = null;
         try {
-            container = createDummyMcServerContainer();
+            container = createDummyMcServerContainer(DEFAULT_PORT,DEFAULT_PORT+1);
             Thread.sleep(15_000);
             assertEquals(getExpectedPort(1), getNextServerPort());
         }
@@ -115,7 +120,7 @@ public class ITDockerizedServerInstantiatorShould {
     void returnFirstPortWhenOneDockerStarted() throws Exception {
         CreateContainerResponse container = null;
         try {
-            container = createDummyMcServerContainer();
+            container = createDummyMcServerContainer(DEFAULT_PORT,DEFAULT_PORT+1);
             Thread.sleep(15_000);
             String ip = getStartedServerIp(container.getId());
             assertEquals(DEFAULT_PORT, ip.split(":")[1]);
@@ -126,14 +131,53 @@ public class ITDockerizedServerInstantiatorShould {
     }
 
     @Test
+    void returnFirstPortWhenDockerEnded() throws Exception {
+        CreateContainerResponse container = null;
+        try {
+            container = createDummyMcServerContainer(DEFAULT_PORT,DEFAULT_PORT+1);
+            Thread.sleep(15_000);
+        }
+        finally {
+            if (container != null) killContainer(container);
+        }
+
+        assertEquals(DEFAULT_PORT, getNextServerPort());
+    }
+
+    @Test
+    void returnFirstPortWhenFirstDockerEnded() throws Exception {
+        CreateContainerResponse container = null,
+                                secondContainer = null;
+        int nextPort = -1;
+        try {
+            container = createDummyMcServerContainer(DEFAULT_PORT,DEFAULT_PORT+1);
+            Thread.sleep(8_000);
+            secondContainer = createDummyMcServerContainer(DEFAULT_PORT+2,DEFAULT_PORT+3);
+            Thread.sleep(15_000);
+
+            // now both are ready; stop the first one
+            killContainer(container);
+            container = null;
+
+            nextPort = getNextServerPort();
+        }
+        finally {
+            if (container != null) killContainer(container);
+            if (secondContainer != null) killContainer(secondContainer);
+        }
+
+        assertEquals(DEFAULT_PORT, nextPort);
+    }
+
+    @Test
     void attachStdio() throws Exception {
         CreateContainerResponse container = null;
         try {
             final StringBuilder sb = new StringBuilder();
-            container = createMcServerContainer("echo 'Test 1' ; echo 'Test 2' ; sleep 20m");
+            container = createMcServerContainer("echo 'Test 1' ; echo 'Test 2' ; sleep 20m", DEFAULT_PORT,DEFAULT_PORT+1);
             attachStdio(container, (line,stderr) -> sb.append(line).append('\n'));
 
-            String expected = "Test 1\nTest 2\n";
+            String expected = "Test 1\nTest 2\n"; // the \n are because we're appending them on the StdioCallback
 
             // wait for the data
             int timeout = 15_000,

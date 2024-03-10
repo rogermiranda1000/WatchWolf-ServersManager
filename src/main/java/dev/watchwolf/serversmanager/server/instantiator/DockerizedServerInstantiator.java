@@ -3,20 +3,14 @@ package dev.watchwolf.serversmanager.server.instantiator;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.command.StartContainerCmd;
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.Frame;
-import com.github.dockerjava.api.model.PortBinding;
-import com.github.dockerjava.api.model.StreamType;
+import com.github.dockerjava.api.command.ListContainersCmd;
+import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
-import com.github.dockerjava.core.command.LogContainerResultCallback;
 import dev.watchwolf.serversmanager.server.ServerRequirements;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 
 public class DockerizedServerInstantiator implements ServerInstantiator {
     public interface StdioCallback {
@@ -53,6 +47,8 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         }
     }
 
+    public static final int BASE_PORT = 8001;
+
     private static String getDockerCommand(String jarName, String ram) {
         String ramParam = "-XX:MaxRAMFraction=1"; // unlimited memory
         if (ram != null) {
@@ -68,11 +64,60 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * @return Next port that ServersManager will have to use
      */
     private static synchronized int getNextServerPort() {
-        return 25565; // TODO get port
+        // get the server containers running
+        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+        final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
+
+        // prepare command to retrieve the list of (running) containers with a matching name
+        ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
+                .withStatusFilter(Arrays.asList("running"))
+                .withNameFilter(Arrays.asList("MC_Server-*"));
+
+        List<Container> exec = listContainersCmd.exec();
+        System.out.println("Got " + exec.size() + " server containers running");
+
+        // get the ports being used
+        Set<Integer> usedPorts = new HashSet<>();
+        for (Container server : exec) {
+            try {
+                String serverIp = getStartedServerIp(server.getId());
+                int serverPort = Integer.parseInt(serverIp.split(":")[1]);
+                // it uses 2 ports
+                usedPorts.add(serverPort);
+                usedPorts.add(serverPort+1);
+            } catch (Exception ignore) {}
+        }
+
+        // get the first free port
+        int freePort = BASE_PORT;
+        while (usedPorts.contains(freePort)) freePort += 2;
+        return freePort;
     }
 
-    private static String getStartedServerIp(String dockerId) {
-        return "127.0.0.1:25565"; // TODO get port
+    private static String getStartedServerIp(String containerId) {
+        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+        final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
+
+        // prepare command to retrieve the list of (running) containers with the provided ID
+        ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
+                .withStatusFilter(Arrays.asList("running"))
+                .withIdFilter(Arrays.asList(containerId));
+
+        List<Container> exec = listContainersCmd.exec();
+        if (exec.isEmpty()) throw new IllegalArgumentException("Couldn't find any active container with ID " + containerId);
+        if (exec.size() > 1) System.err.println("Got more than one containers while filtering with ID " + containerId);
+
+        Container serverContainer = exec.get(0);
+        Set<Integer> containerPorts = new HashSet<>();
+        for (ContainerPort port : serverContainer.getPorts()) {
+            containerPorts.add(port.getPublicPort());
+        }
+
+        List<Integer> ports = containerPorts.stream().toList();
+        if (containerPorts.size() != 2) throw new IllegalArgumentException("Expecting 2 ports on docker container " + containerId + "; got " + ports.toString() + " instead");
+        if (ports.get(0) != ports.get(1)-1) System.err.println("Expecting docker container ports to be consecutive; got " + ports.toString() + " instead");
+
+        return "127.0.0.1:" + ports.get(0);
     }
 
     /**
@@ -98,7 +143,6 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
 
         CreateContainerResponse container;
-        StartContainerCmd cnt;
         synchronized (DockerizedServerInstantiator.class) {
             int port = getNextServerPort();
             int socketPort = port + 1;
@@ -115,13 +159,12 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
                     .withWorkingDir("/server")
                     .withEntrypoint("/bin/sh", "-c")
                     .withCmd(dockerCmd).exec();
-            cnt = dockerClient.startContainerCmd(container.getId());
-            cnt.exec();
+            dockerClient.startContainerCmd(container.getId()).exec();
         }
 
         DockerizedServerInstantiator.attachStdio(dockerClient, container, new StdioAdapter(serverId));
 
-        Server r = new Server(DockerizedServerInstantiator.getStartedServerIp(cnt.getContainerId()));
+        Server r = new Server(DockerizedServerInstantiator.getStartedServerIp(container.getId()));
 
         // we need to perform some cleanup if the server stops
         r.subscribeToServerStoppedEvents(() -> {
