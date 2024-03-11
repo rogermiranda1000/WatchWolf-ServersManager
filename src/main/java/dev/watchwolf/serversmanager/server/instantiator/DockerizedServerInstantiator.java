@@ -70,7 +70,8 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
         // prepare command to retrieve the list of (running) containers with a matching name
         ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
-                .withStatusFilter(Arrays.asList("running"))
+                // implicit with `listContainersCmd()` without `withShowAll(true)`
+                //.withStatusFilter(Arrays.asList("running"))
                 .withNameFilter(Arrays.asList("MC_Server-*"));
 
         List<Container> exec = listContainersCmd.exec();
@@ -100,7 +101,8 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
         // prepare command to retrieve the list of (running) containers with the provided ID
         ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
-                .withStatusFilter(Arrays.asList("running"))
+                // implicit with `listContainersCmd()` without `withShowAll(true)`
+                //.withStatusFilter(Arrays.asList("running"))
                 .withIdFilter(Arrays.asList(containerId));
 
         List<Container> exec = listContainersCmd.exec();
@@ -152,9 +154,15 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             // TODO specify max memory
             container = dockerClient.createContainerCmd("openjdk:" + javaVersion)
                     .withName(serverId)
-                    .withPortBindings(PortBinding.parse(port + ":" + port + "/tcp"),
-                            PortBinding.parse(port + ":" + port + "/udp"),
-                            PortBinding.parse(socketPort + ":" + socketPort))
+                    .withHostConfig(
+                            new HostConfig().withPortBindings(
+                                    PortBinding.parse(port + ":" + port + "/tcp"),
+                                    PortBinding.parse(port + ":" + port + "/udp"),
+                                    PortBinding.parse(socketPort + ":" + socketPort)
+                            ))
+                    .withExposedPorts(new ExposedPort(port, InternetProtocol.TCP),
+                            new ExposedPort(port, InternetProtocol.UDP),
+                            new ExposedPort(socketPort, InternetProtocol.TCP))
                     .withBinds(Bind.parse(folderLocation.toString() + ":/server"))
                     .withWorkingDir("/server")
                     .withEntrypoint("/bin/sh", "-c")
