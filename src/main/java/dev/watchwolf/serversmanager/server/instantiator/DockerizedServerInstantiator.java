@@ -71,8 +71,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         // prepare command to retrieve the list of (running) containers with a matching name
         ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
                 // implicit with `listContainersCmd()` without `withShowAll(true)`
-                //.withStatusFilter(Arrays.asList("running"))
-                .withNameFilter(Arrays.asList("MC_Server-*"));
+                /*.withStatusFilter(Arrays.asList("running"))*/;
 
         List<Container> exec = listContainersCmd.exec();
         System.out.println("Got " + exec.size() + " server containers running");
@@ -80,18 +79,13 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         // get the ports being used
         Set<Integer> usedPorts = new HashSet<>();
         for (Container server : exec) {
-            try {
-                String serverIp = getStartedServerIp(server.getId());
-                int serverPort = Integer.parseInt(serverIp.split(":")[1]);
-                // it uses 2 ports
-                usedPorts.add(serverPort);
-                usedPorts.add(serverPort+1);
-            } catch (Exception ignore) {}
+            for (ContainerPort port : server.getPorts()) usedPorts.add(port.getPublicPort());
         }
+        System.out.println("Got the following used ports: " + usedPorts.toString());
 
         // get the first free port
         int freePort = BASE_PORT;
-        while (usedPorts.contains(freePort)) freePort += 2;
+        while (usedPorts.contains(freePort) || usedPorts.contains(freePort+1)) freePort += 2; // we need 2 consecutive ports
         return freePort;
     }
 

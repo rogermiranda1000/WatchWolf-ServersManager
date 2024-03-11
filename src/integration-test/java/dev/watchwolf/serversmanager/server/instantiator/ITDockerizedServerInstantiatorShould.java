@@ -137,16 +137,17 @@ public class ITDockerizedServerInstantiatorShould {
     }
 
     @Test
-    void returnNextPortWhenFirstPortIsBeingUsed() throws Exception {
+    void returnNextPortWhenFirstRangeIsBeingUsed() throws Exception {
         CreateContainerResponse container = null;
         try {
+            int portToUse = DEFAULT_PORT+1;
             container = getDockerClient().createContainerCmd("openjdk:8")
                     .withName("my-other-service")
                     .withHostConfig(
                             new HostConfig().withPortBindings(
-                                    PortBinding.parse(DEFAULT_PORT + ":" + DEFAULT_PORT + "/tcp")
+                                    PortBinding.parse(portToUse + ":" + portToUse + "/tcp")
                             ))
-                    .withExposedPorts(new ExposedPort(DEFAULT_PORT, InternetProtocol.TCP)) // we'll use the default port
+                    .withExposedPorts(new ExposedPort(portToUse, InternetProtocol.TCP)) // we'll use the default port
                     .withEntrypoint("/bin/sh", "-c")
                     .withCmd("sleep 20m").exec();
 
