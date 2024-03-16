@@ -33,8 +33,14 @@ docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/
 
 # run the tests
 if [ $unit -eq 1 ]; then
+    unit_tests_report_path="$base_path/target/surefire-reports"
+    mkdir -p "$unit_tests_report_path"
+
     # run unit tests
-    docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn test -DskipTests=false -DskipUTs=false -DskipITs=true -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
+    docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17              \
+                    mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                                               \
+                    -Dmaven.test.redirectTestOutputToFile=true -X --file '/compile'                                         \
+            2>&1 | tee "$unit_tests_report_path/docker-log.txt" # forward to file
     result=$?
 
     # Convert xml reports into html
@@ -47,11 +53,17 @@ if [ $unit -eq 1 ]; then
 fi 
 
 if [ $integration -eq 1 ]; then
+    integration_tests_report_path="$base_path/target/failsafe-reports"
+    mkdir -p "$integration_tests_report_path"
+
     # run integration tests
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
                     -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
                     -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
-                    maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true --file '/compile'
+                    maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify                                                       \
+                            -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true                                    \
+                            -X --file '/compile'                                                                                                    \
+            2>&1 | tee "$integration_tests_report_path/docker-log.txt" # forward to file
     result=$?
 
     # Convert xml reports into html
