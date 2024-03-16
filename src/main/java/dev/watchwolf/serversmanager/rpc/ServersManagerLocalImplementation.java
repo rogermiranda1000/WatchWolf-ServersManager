@@ -56,8 +56,4 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
             return ""; // no server
         }
     }
-
-    public static void main(String[] args) throws IOException {
-        // TODO must redirect main; execute RPC setup
-    }
 }

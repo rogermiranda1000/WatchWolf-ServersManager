@@ -34,6 +34,18 @@ if [ ! -z "$warning_files" ]; then
     error=1
 fi
 
+# does all integration tests have a timeout?
+candidates=`find "$integration_tests_path" -type f -name 'IT*.java'`
+for candidate in $candidates; do
+    # TODO what if commented?
+    # TODO what if non-test class?
+    # TODO what if multiple classes in same file?
+    if [ `grep -Pz -c '@Timeout.*\n.*public class' "$candidate"` -eq 0 ]; then
+        echo "[w] Class defined on $candidate don't have timeout set."
+        error=1
+    fi
+done
+
 if [ $error -ne 0 ]; then
     exit $error
 fi

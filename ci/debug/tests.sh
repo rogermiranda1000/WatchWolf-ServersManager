@@ -39,7 +39,7 @@ if [ $unit -eq 1 ]; then
     # run unit tests
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17              \
                     mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                                               \
-                    -Dmaven.test.redirectTestOutputToFile=true -X --file '/compile'                                         \
+                    -Dmaven.test.redirectTestOutputToFile=true -X -Dlog4j2.debug --file '/compile'                          \
             2>&1 | tee "$unit_tests_report_path/docker-log.txt" # forward to file
     result=$?
 
@@ -62,7 +62,7 @@ if [ $integration -eq 1 ]; then
                     -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
                     maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify                                                       \
                             -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true                                    \
-                            -X --file '/compile'                                                                                                    \
+                            -X -Dlog4j2.debug --file '/compile'                                                                                     \
             2>&1 | tee "$integration_tests_report_path/docker-log.txt" # forward to file
     result=$?
 
