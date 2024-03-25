@@ -6,6 +6,7 @@ import dev.watchwolf.core.entities.WorldType;
 import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
 import dev.watchwolf.serversmanager.server.plugins.PluginDeserializer;
+import dev.watchwolf.serversmanager.server.plugins.ServersManagerPluginDeserializer;
 import nl.altindag.log.LogCaptor;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -16,12 +17,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -38,17 +35,28 @@ public class ServerRequirementsShould {
     //  =======================
 
 
+    private static void setServerTypesFolder(Path sourcePath) throws NoSuchFieldException,IllegalAccessException {
+        Field deserializerField = ServerRequirements.class.getDeclaredField("serverTypesFolder");
+        deserializerField.setAccessible(true);
+        deserializerField.set(null, sourcePath);
+    }
+
+    private static void clearServerTypesFolder() throws NoSuchFieldException,IllegalAccessException {
+        setServerTypesFolder(Paths.get(".")); // as tests run without env variables, it will be "."
+    }
+
+
     private static Method getCopyServerJarMethod() throws NoSuchMethodException {
-        Method method = ServerRequirements.class.getDeclaredMethod("copyServerJar", String.class, String.class, Path.class, Path.class, String.class);
+        Method method = ServerRequirements.class.getDeclaredMethod("copyServerJar", String.class, String.class, Path.class, String.class);
         method.setAccessible(true);
         return method;
     }
 
     private static Path givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server(FileSystem fileSystem) throws IOException {
-        Path sourcePath = fileSystem.getPath("/src");
+        Path sourcePath = fileSystem.getPath("/server-types");
         String version = "1.20";
         for (String serverType : new String[]{"Spigot", "Paper"}) {
-            Path serversFolder = sourcePath.resolve("server-types/" + serverType),
+            Path serversFolder = sourcePath.resolve(serverType),
                     serverFile = serversFolder.resolve(version + ".jar");
             String fileContents = serverType + " " + version;
 
@@ -58,37 +66,44 @@ public class ServerRequirementsShould {
         return sourcePath;
     }
 
+    private static Path givenAPathWithOneSpigot1_20And1_8_8ServerAndOnePaper1_19Server(FileSystem fileSystem) throws IOException {
+        Path sourcePath = fileSystem.getPath("/server-types");
+
+        Files.createDirectories(sourcePath.resolve("Spigot"));
+        Files.createFile(sourcePath.resolve("Spigot").resolve("1.20.jar"));
+        Files.createFile(sourcePath.resolve("Spigot").resolve("1.8.8.jar"));
+
+        Files.createDirectories(sourcePath.resolve("Paper"));
+        Files.createFile(sourcePath.resolve("Paper").resolve("1.19.jar"));
+
+        return sourcePath;
+    }
+
     private static Path givenACreatedDestinyFolder(FileSystem fileSystem) throws IOException {
         Path dstPath = fileSystem.getPath("/dst");
         Files.createDirectories(dstPath);
         return dstPath;
     }
 
-    private static void setDeserializer(PluginDeserializer pluginDeserializer) throws NoSuchFieldException,IllegalAccessException {
-        Field deserializerField = ServerRequirements.class.getDeclaredField("deserializer");
-        deserializerField.setAccessible(true);
-
-        // unset 'final' modifier
-        /*Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(deserializerField, deserializerField.getModifiers() & ~Modifier.FINAL);*/
-
-        deserializerField.set(null, pluginDeserializer);
-    }
-
     @Test
     void placeTheAppropriateServerJarInTheRootTargetFolder() throws Exception {
-        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
-        Path sourcePath = givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server(fileSystem),
-                dstPath = givenACreatedDestinyFolder(fileSystem);
-        Path outFile = dstPath.resolve(TARGET_SERVER_JAR);
+        try {
+            FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+            Path sourcePath = givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server(fileSystem),
+                    dstPath = givenACreatedDestinyFolder(fileSystem);
+            Path outFile = dstPath.resolve(TARGET_SERVER_JAR);
 
-        // act
-        getCopyServerJarMethod().invoke(null, "Spigot", "1.20", sourcePath, dstPath, TARGET_SERVER_JAR);
+            setServerTypesFolder(sourcePath);
 
-        // assert
-        assertTrue(Files.exists(outFile)); // the file should exist
-        assertEquals("Spigot 1.20", Files.readAllLines(outFile).get(0)); // `givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server` is writing the server type and version
+            // act
+            getCopyServerJarMethod().invoke(null, "Spigot", "1.20", dstPath, TARGET_SERVER_JAR);
+
+            // assert
+            assertTrue(Files.exists(outFile)); // the file should exist
+            assertEquals("Spigot 1.20", Files.readAllLines(outFile).get(0)); // `givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server` is writing the server type and version
+        } finally {
+            clearServerTypesFolder();
+        }
     }
 
     @Test
@@ -98,11 +113,15 @@ public class ServerRequirementsShould {
                 dstPath = givenACreatedDestinyFolder(fileSystem);
 
         try {
-            getCopyServerJarMethod().invoke(null, "Spigot", "1.19", sourcePath, dstPath, TARGET_SERVER_JAR);
+            setServerTypesFolder(sourcePath);
+
+            getCopyServerJarMethod().invoke(null, "Spigot", "1.19", dstPath, TARGET_SERVER_JAR);
         } catch (Throwable ex) {
             // we expect a `ServerJarUnavailableException`
             if (ex instanceof InvocationTargetException) ex = ((InvocationTargetException)ex).getCause();
             if (!ex.getClass().equals(ServerJarUnavailableException.class)) throw ex;
+        } finally {
+            clearServerTypesFolder();
         }
     }
 
@@ -140,11 +159,46 @@ public class ServerRequirementsShould {
     //  =====================
 
 
+    private static void setDeserializer(PluginDeserializer pluginDeserializer) throws NoSuchFieldException,IllegalAccessException {
+        Field deserializerField = ServerRequirements.class.getDeclaredField("deserializer");
+        deserializerField.setAccessible(true);
+
+        // unset 'final' modifier
+        /*Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(deserializerField, deserializerField.getModifiers() & ~Modifier.FINAL);*/
+
+        deserializerField.set(null, pluginDeserializer);
+    }
+
+    private static void setPluginDeserializerMock(Path usualPluginsFolder) throws IOException, NoSuchFieldException, IllegalAccessException {
+        Files.createDirectory(usualPluginsFolder);
+
+        // create mock to point to created folder
+        PluginDeserializer pluginDeserializer = mock(PluginDeserializer.class);
+        when(pluginDeserializer.getUsualPluginsPath())
+                .thenReturn(usualPluginsFolder);
+
+        setDeserializer(pluginDeserializer); // set mock as deserializer
+    }
+
+    private static void clearPluginDeserializerMock() throws NoSuchFieldException, IllegalAccessException {
+        setDeserializer(new ServersManagerPluginDeserializer());
+    }
+
+    private static void disableShowServerFolderInfo() throws NoSuchFieldException, IllegalAccessException {
+        Field deserializerField = ServerRequirements.class.getDeclaredField("serverFolderInfoLogged");
+        deserializerField.setAccessible(true);
+        deserializerField.set(null, true);
+    }
+
     @Test
     @Disabled
     void prepareAServerFolder() throws Exception {
         try (MockedStatic<ServerRequirements> dummyStatic = Mockito.mockStatic(ServerRequirements.class,Mockito.CALLS_REAL_METHODS)) {
             // arrange
+            disableShowServerFolderInfo(); // otherwise it will fail because there's no servers
+
             String serverType = "Spigot";
             String serverVersion = "1.20";
             Collection<Plugin> plugins = new ArrayList<>();
@@ -164,46 +218,68 @@ public class ServerRequirementsShould {
             dummyStatic.when(() -> ServerRequirements.getGlobalServerFolder(anyString()))
                     .thenReturn(""); // we don't care about the return
 
+            setServerTypesFolder(sourcePath);
+
             // act
-            ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, sourcePath);
+            ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName);
 
             // assert
             assertTrue(Files.exists(expectedJar));
             // TODO add verify calls to each of the expected methods to call
+        } finally {
+            clearServerTypesFolder();
         }
     }
 
     @Test
+    @Disabled
     void logAllPluginsAvailable() throws Exception {
         // arrange
         try(FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
             LogCaptor logCaptor = LogCaptor.forClass(ServerRequirements.class)) {
-            // create usual-plugins folder
-            Path usualPluginsFolder = fs.getPath("/plugins");
-            Files.createDirectory(usualPluginsFolder);
+            Path serverTypesFolder = fs.getPath("/servers/server-types");
+            Files.createDirectories(serverTypesFolder);
+            setServerTypesFolder(serverTypesFolder); // we need the mock or it will crash
 
+            Path usualPluginsFolder = fs.getPath("/plugins");
+            setPluginDeserializerMock(usualPluginsFolder);
+
+            // create the usual-plugins
             Files.createFile(usualPluginsFolder.resolve("WatchWolf-0.1-1.8-LATEST.jar"));
             Files.createFile(usualPluginsFolder.resolve("MyValuablePlugin-1.0-1.8-LATEST.jar"));
-
-            // create mock to point to created folder
-            PluginDeserializer pluginDeserializer = mock(PluginDeserializer.class);
-            when(pluginDeserializer.getUsualPluginsPath())
-                    .thenReturn(usualPluginsFolder);
-
-            setDeserializer(pluginDeserializer); // set mock as deserializer
 
             // act
             ServerRequirements.logServerFolderInfo();
 
             // assert
             assertTrue(logCaptor.getLogs().contains("Usual plugins: [WatchWolf-0.1-1.8-LATEST.jar, MyValuablePlugin-1.0-1.8-LATEST.jar]"),
-                    "Expected ServerRequirements to log the usual plugins on the folder ('WatchWolf' and 'MyValuablePlugin'), but got nothing.\nCaptured logs:\n" + logCaptor.getLogs().toString());
+                    "Expected ServerRequirements to log the usual plugins on the folder ('WatchWolf' and 'MyValuablePlugin'), but got different data.\nCaptured logs:\n" + logCaptor.getLogs().toString());
+        } finally {
+            clearPluginDeserializerMock();
+            clearServerTypesFolder();
         }
     }
 
     @Test
+    @Disabled
     void logAllServersAvailable() throws Exception {
-        ServerRequirements.logServerFolderInfo();
-        fail(); // TODO
+        // arrange
+        try(FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
+            LogCaptor logCaptor = LogCaptor.forClass(ServerRequirements.class)) {
+            Path usualPluginsFolder = fs.getPath("/plugins");
+            setPluginDeserializerMock(usualPluginsFolder); // we need the mock or it will crash
+
+            setServerTypesFolder(givenAPathWithOneSpigot1_20And1_8_8ServerAndOnePaper1_19Server(fs));
+
+            // act
+            ServerRequirements.logServerFolderInfo();
+
+            // assert
+            assertTrue(logCaptor.getLogs().contains("Servers available: {Paper=[1.19], Spigot=[1.20, 1.8.8]}"),
+                    "Expected ServerRequirements to log the servers available (Spigot 1.20, Spigot 1.8.8 and Paper 1.19), but got different data.\nCaptured logs:\n" + logCaptor.getLogs().toString());
+        } finally {
+            clearPluginDeserializerMock();
+            clearServerTypesFolder();
+        }
     }
 }

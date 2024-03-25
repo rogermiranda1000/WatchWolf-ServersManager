@@ -16,12 +16,23 @@ public class ThrowableServer extends Server {
 
     public ThrowableServer(Server s) {
         super(s.getIp());
+
         this.wrappedServer = s;
         this.capturedExceptionListeners = new ArrayList<>();
         this.exception = null;
+        this.setSubEventManagerAsSelf();
+    }
+
+    private void setSubEventManagerAsSelf() {
+        this.serverMessageListeners.clear(); // the super constructor will subscribe this object to messages, but the wrapped server is already subscribed
+
+        // now the listener are us
+        this.wrappedServer.serverMessageListeners.remove(this.wrappedServer);
+        this.wrappedServer.subscribeToServerMessageEvents(this);
     }
 
     void raiseExceptionEvent(String msg) {
+        this.logger.traceEntry(null, msg);
         for (CapturedExceptionEvent e : this.capturedExceptionListeners) {
             try {
                 e.capturedException(msg);
@@ -43,18 +54,20 @@ public class ThrowableServer extends Server {
 
     @Override
     void raiseServerMessageEvent(String msg) {
+        this.logger.traceEntry(null, msg);
         this.wrappedServer.raiseServerMessageEvent(msg);
         for (ServerMessageEvent e : this.serverMessageListeners) e.onMessageEvent(msg);
     }
 
     public Server subscribeToExceptionEvents(CapturedExceptionEvent subscriber) {
+        this.logger.traceEntry(null, subscriber);
         this.capturedExceptionListeners.add(subscriber);
         return this;
     }
 
     @Override
     public void onMessageEvent(String msg) {
-        // invoke the original event handler
+        // original event handler already called
         super.onMessageEvent(msg);
 
         if (this.exception == null) {
@@ -62,6 +75,7 @@ public class ThrowableServer extends Server {
             Pattern startingExceptionPattern = Pattern.compile("^\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/ERROR\\]: ");
             if (startingExceptionPattern.matcher(msg).find()) {
                 // following there's an exception
+                this.logger.info("Getting start of exception...");
                 this.exception = new StringBuilder();
             }
         }
@@ -70,6 +84,7 @@ public class ThrowableServer extends Server {
             Pattern finishingExceptionPattern = Pattern.compile("^\\[\\d{2}:\\d{2}:\\d{2}\\] \\[Server thread/");
             if (finishingExceptionPattern.matcher(msg).find()) {
                 // exception completed; launch event
+                this.logger.debug("Exception completed; launching event...");
                 this.raiseExceptionEvent(this.exception.toString());
                 this.exception = null; // back to listen
             }

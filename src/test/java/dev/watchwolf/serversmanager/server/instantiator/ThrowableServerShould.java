@@ -15,11 +15,17 @@ public class ThrowableServerShould extends ServerShould {
         return new ThrowableServer(super.getServer(ip));
     }
 
+    @Override
+    protected Server getServer() {
+        return new ThrowableServer(super.getServer());
+    }
+
     @Test
     void notifyServerStartedEventsDefinedOnWrapper() throws Exception {
         final AtomicBoolean syncronizedObject = new AtomicBoolean(false);
 
         Server uut = super.getServer();
+        assertEquals(Server.class, uut.getClass());
         uut.subscribeToServerStartedEvents(() -> {
             synchronized (syncronizedObject) {
                 syncronizedObject.set(true);
@@ -46,10 +52,11 @@ public class ThrowableServerShould extends ServerShould {
     }
 
     @Test
-    void notifyServeStoppedEventsDefinedOnWrapper() throws Exception {
+    void notifyServerStoppedEventsDefinedOnWrapper() throws Exception {
         final AtomicInteger syncronizedObject = new AtomicInteger(0);
 
         Server uut = super.getServer();
+        assertEquals(Server.class, uut.getClass());
         uut.subscribeToServerStoppedEvents(() -> {
             synchronized (syncronizedObject) {
                 syncronizedObject.incrementAndGet();
@@ -201,6 +208,51 @@ java.lang.IllegalStateException: zip file closed
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
             assertEquals(exception, syncronizedObject.get(), "Strings don't match:\n  Expecting:\n" + exception + "\n  Got:\n" + syncronizedObject.get());
+        }
+    }
+
+    @Test
+    void detectServerStartedByMessageDefinedOnWrapper() throws Exception {
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
+
+        Server uut = super.getServer();
+        assertEquals(Server.class, uut.getClass());
+        uut.subscribeToServerStartedEvents(() -> {
+            synchronized (syncronizedObject) {
+                syncronizedObject.incrementAndGet();
+                syncronizedObject.notify();
+            }
+        });
+
+        uut = new ThrowableServer(uut);
+
+        final String startupSequence = """
+[18:47:41] [Server thread/INFO]: Preparing level "world"
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
+[18:47:44] [Server thread/INFO]: Time elapsed: 118 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_nether
+[18:47:44] [Server thread/INFO]: Time elapsed: 101 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_end
+[18:47:44] [Server thread/INFO]: Time elapsed: 81 ms
+[18:47:45] [Server thread/INFO]: [MineIt] WorldGuard plugin detected.
+[18:47:45] [Server thread/INFO]: Running delayed init tasks
+"""; // next we get the 'Done' message
+
+        for (String line : startupSequence.split("\n")) uut.raiseServerMessageEvent(line);
+
+        synchronized (syncronizedObject) {
+            // we didn't launch the event, so nothing should invoke
+            try {
+                syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
+            } catch (InterruptedException ignored) {}
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
+        }
+
+        uut.raiseServerMessageEvent("[18:47:45] [Server thread/INFO]: Done (6.656s)! For help, type \"help\"");
+
+        synchronized (syncronizedObject) {
+            syncronizedObject.wait(WAIT_TIMEOUT);
+            assertEquals(1, syncronizedObject.get(), "Event was " + ((syncronizedObject.get() == 0) ? "not risen" : "risen more than once"));
         }
     }
 }

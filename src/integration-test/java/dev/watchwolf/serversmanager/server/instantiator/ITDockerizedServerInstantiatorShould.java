@@ -37,7 +37,7 @@ public class ITDockerizedServerInstantiatorShould {
     //
 
     private static DockerClient dockerClient;
-    private synchronized static DockerClient getDockerClient() {
+    public synchronized static DockerClient getDockerClient() {
         if (ITDockerizedServerInstantiatorShould.dockerClient == null) {
             DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
             ITDockerizedServerInstantiatorShould.dockerClient = DockerClientBuilder.getInstance(config).build();

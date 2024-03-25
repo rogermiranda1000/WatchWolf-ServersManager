@@ -1,5 +1,8 @@
 package dev.watchwolf.serversmanager;
 
+import com.github.dockerjava.api.command.ListContainersCmd;
+import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.ContainerMount;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.apache.logging.log4j.LogManager;
@@ -11,8 +14,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 
+import static dev.watchwolf.serversmanager.server.instantiator.ITDockerizedServerInstantiatorShould.getDockerClient;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Timeout(10*60)
@@ -75,10 +83,32 @@ public class ITServersManagerRPCShould {
     }
 
     public static String[] killAllDockerServers() {
-        // TODO kill all dockers that are servers
-        // TODO get linked server folder paths
-        String []serverFolderPaths = new String[]{"/TODO"};
-        return serverFolderPaths;
+        List<String> serverFolderPaths = new ArrayList<>();
+
+        LOGGER.debug("Stopping all server dockers...");
+        ListContainersCmd listContainersCmd = getDockerClient().listContainersCmd()
+                        .withNameFilter(Collections.singletonList("MC_Server-*"));
+
+        List<Container> servers = listContainersCmd.exec();
+        LOGGER.debug("Server dockers got: " + servers.toString());
+        for (Container container : servers) {
+            // get the folder that server was using
+            for (ContainerMount mount : container.getMounts()) {
+                if (!mount.getDestination().equals("/server")) LOGGER.warn("Got non-server mount: " + mount.getSource());
+
+                serverFolderPaths.add(mount.getSource());
+            }
+
+            // kill the server
+            LOGGER.debug("Stopping container " + container.getId() + "...");
+            try {
+                //getDockerClient().stopContainerCmd(container.getId()).exec();
+                getDockerClient().killContainerCmd(container.getId()).exec();
+            } catch (Exception ignore) {}
+            getDockerClient().removeContainerCmd(container.getId()).exec();
+        }
+
+        return LOGGER.traceExit(serverFolderPaths.toArray(new String[0]));
     }
 
     public static int getByte(BufferedReader in, int timeout) throws TimeoutException,IOException {
@@ -101,6 +131,7 @@ public class ITServersManagerRPCShould {
         mainThread.start();
         LOGGER.info("Main thread launched in parallel.");
 
+        String []serverFolders = null;
         try(Socket clientSocket = waitUntilReadyAndConnect("127.0.0.1", 8000);
             BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()))) {
             // send hardcoded "Start Server" sequence
@@ -119,10 +150,12 @@ public class ITServersManagerRPCShould {
             String ip = getString(in, ipLength);
             LOGGER.debug("IP got: " + ip);
             assertEquals(8001, Integer.valueOf(ip.split(":")[1]));
+        } finally {
+            // killing the server docker should also be treated as 'server closed'
+            serverFolders = killAllDockerServers();
         }
 
-        // killing the server docker should also be treated as 'server closed'
-        String []serverFolders = killAllDockerServers();
+        assertTrue(serverFolders.length > 0, "Expected (at least) one server to be closed; got 0 instead");
         Thread.sleep(5_000); // wait for the event to reach WW-ServersManager TODO maybe we could get the 'server stopped' event?
         for (String serverFolder : serverFolders) {
             assertFalse(new File(serverFolder).exists(), "Expected server folder to be clear; got existing folder instead");

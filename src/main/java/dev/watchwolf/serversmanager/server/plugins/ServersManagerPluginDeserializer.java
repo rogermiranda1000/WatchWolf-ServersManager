@@ -6,8 +6,11 @@ import dev.watchwolf.core.entities.files.plugins.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class ServersManagerPluginDeserializer implements PluginDeserializer {
+    private static final Path usualPluginsFolder = Paths.get( (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT") ).resolve("usual-plugins");
+
     /**
      * Places a plugin into a folder
      * @param plugin Plugin to deserialize
@@ -30,6 +33,6 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
      */
     @Override
     public Path getUsualPluginsPath() throws IOException {
-        return null; // TODO
+        return usualPluginsFolder;
     }
 }

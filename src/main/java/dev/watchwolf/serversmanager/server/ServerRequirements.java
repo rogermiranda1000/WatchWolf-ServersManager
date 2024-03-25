@@ -18,8 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Collection;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -32,9 +31,10 @@ public class ServerRequirements {
     private static boolean serverFolderInfoLogged = false;
 
     private static PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
+    private static Path serverTypesFolder = Paths.get( (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT") ).resolve("server-types");
 
-    private static void copyServerJar(String serverType, String serverVersion, Path baseFolder, Path targetFolder, String jarName) throws ServerJarUnavailableException,IOException {
-        Path serverJar = baseFolder.resolve("server-types/" + serverType + "/" + serverVersion + ".jar");
+    private static void copyServerJar(String serverType, String serverVersion, Path targetFolder, String jarName) throws ServerJarUnavailableException,IOException {
+        Path serverJar = serverTypesFolder.resolve(serverType + "/" + serverVersion + ".jar");
         if (!Files.exists(serverJar)) throw new ServerJarUnavailableException("Couldn't find " + serverType + " " + serverVersion + " on expected location (" + serverJar.toString() + ")");
 
         Files.copy(serverJar, targetFolder.resolve(jarName));
@@ -82,26 +82,36 @@ public class ServerRequirements {
         ServerRequirements.logger.info("Usual plugins: " + usualPlugins.toString());
 
         // print all server types got
-        // TODO
+        Map<String, List<String>> serversAvailable = new HashMap<>();
+        for (Path serverType : Files.list(serverTypesFolder).collect(Collectors.toList())) {
+            serversAvailable.put(serverType.getFileName().toString(),
+                    Files.list(serverType)
+                            .map(f -> f.getFileName().toString())
+                            .filter(f -> f.endsWith(".jar")) // only servers
+                            .map(f -> f.substring(0, f.length() - 4)) // remove extension
+                            .collect(Collectors.toList())
+            );
+        }
+        ServerRequirements.logger.info("Servers available: " + serversAvailable.toString());
 
         // now we've logged the information
         ServerRequirements.serverFolderInfoLogged = true;
     }
 
-    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName, Path copyServerContents) throws IOException {
+    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
         if (!ServerRequirements.serverFolderInfoLogged) ServerRequirements.logServerFolderInfo();
 
         Path serverFolder = ServerRequirements.createServerFolder();
 
         // copy server (type&version)
-        ServerRequirements.copyServerJar(serverType, serverVersion, copyServerContents, serverFolder, jarName);
+        ServerRequirements.copyServerJar(serverType, serverVersion, serverFolder, jarName);
         generateEulaFile(serverFolder);
         // TODO setup server config (worldType and other parameters)
 
         // export worlds
         for (ConfigFile map : maps) {
             if (!(map instanceof ZipFile)) throw new IllegalArgumentException("All worlds must be zips; got `." + map.getExtension() + "` instead.");
-            ((ZipFile)map).exportToDirectory(serverFolder.toFile());
+            ((ZipFile)map).exportToDirectory(serverFolder);
         }
 
         // export plugins
@@ -123,17 +133,13 @@ public class ServerRequirements {
                 continue;
             }
 
-            if (configFile instanceof ZipFile) ((ZipFile)configFile).exportToDirectory(new File(basePluginsFolder + configFile.getOffsetPath()));
+            if (configFile instanceof ZipFile) ((ZipFile)configFile).exportToDirectory(Path.of(basePluginsFolder + configFile.getOffsetPath()));
             else configFile.saveToFile(new File(basePluginsFolder + "/" + configFile.getOffsetPath() + configFile.getName() + "." + configFile.getExtension()));
         }
         // TODO add WW-Server config file
 
         // we must return the global folder
         return getGlobalServerFolder(serverFolder.toString());
-    }
-
-    public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
-        return setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName, Paths.get( (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT") ));
     }
 
     public static String getHashFromServerPath(String path) {

@@ -11,6 +11,7 @@ import dev.watchwolf.serversmanager.server.ServerRequirements;
 
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DockerizedServerInstantiator implements ServerInstantiator {
     public interface StdioCallback {
@@ -132,7 +133,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
     @Override
     public Server startServer(Path folderLocation, String entrypoint, int javaVersion) {
-        String serverId = "MC_Server-" + ServerRequirements.getHashFromServerPath(folderLocation.toString());
+        final String serverId = "MC_Server-" + ServerRequirements.getHashFromServerPath(folderLocation.toString());
         String dockerCmd = getDockerCommand(entrypoint, null); // TODO specify ram
 
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
@@ -164,12 +165,17 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             dockerClient.startContainerCmd(container.getId()).exec();
         }
 
-        DockerizedServerInstantiator.attachStdio(dockerClient, container, new StdioAdapter(serverId));
+        final AtomicReference<Server> server = new AtomicReference<>();
+        StdioCallback stdioCallback = (line, err) -> {
+            if (server.get() == null) return; // still not linked (this shouldn't be called)
+            server.get().raiseServerMessageEvent(line);
+        };
+        DockerizedServerInstantiator.attachStdio(dockerClient, container, new StdioAdapter(serverId, stdioCallback));
 
-        Server r = new Server(DockerizedServerInstantiator.getStartedServerIp(container.getId()));
+        server.set(new Server(DockerizedServerInstantiator.getStartedServerIp(container.getId())));
 
         // we need to perform some cleanup if the server stops
-        r.subscribeToServerStoppedEvents(() -> {
+        server.get().subscribeToServerStoppedEvents(() -> {
             // on server close, close the container
             try {
                 dockerClient.killContainerCmd(container.getId()).exec();
@@ -179,6 +185,6 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
         // TODO launch server stopped event when stopped
 
-        return r;
+        return server.get();
     }
 }

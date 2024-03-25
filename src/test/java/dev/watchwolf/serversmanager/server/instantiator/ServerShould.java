@@ -3,6 +3,7 @@ package dev.watchwolf.serversmanager.server.instantiator;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -17,7 +18,7 @@ public class ServerShould {
     }
 
     protected Server getServer() {
-        return this.getServer("127.0.0.1:25565");
+        return new Server("127.0.0.1:25565");
     }
 
     @Test
@@ -54,6 +55,48 @@ public class ServerShould {
         synchronized (syncronizedObject) {
             syncronizedObject.wait(WAIT_TIMEOUT);
             assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
+        }
+    }
+
+    @Test
+    void detectServerStartedByMessage() throws Exception {
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
+
+        Server uut = getServer();
+        uut.subscribeToServerStartedEvents(() -> {
+            synchronized (syncronizedObject) {
+                syncronizedObject.incrementAndGet();
+                syncronizedObject.notify();
+            }
+        });
+
+        final String startupSequence = """
+[18:47:41] [Server thread/INFO]: Preparing level "world"
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
+[18:47:44] [Server thread/INFO]: Time elapsed: 118 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_nether
+[18:47:44] [Server thread/INFO]: Time elapsed: 101 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_end
+[18:47:44] [Server thread/INFO]: Time elapsed: 81 ms
+[18:47:45] [Server thread/INFO]: [MineIt] WorldGuard plugin detected.
+[18:47:45] [Server thread/INFO]: Running delayed init tasks
+"""; // next we get the 'Done' message
+
+        for (String line : startupSequence.split("\n")) uut.raiseServerMessageEvent(line);
+
+        synchronized (syncronizedObject) {
+            // we didn't launch the event, so nothing should invoke
+            try {
+                syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
+            } catch (InterruptedException ignored) {}
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
+        }
+
+        uut.raiseServerMessageEvent("[18:47:45] [Server thread/INFO]: Done (6.656s)! For help, type \"help\"");
+
+        synchronized (syncronizedObject) {
+            syncronizedObject.wait(WAIT_TIMEOUT);
+            assertEquals(1, syncronizedObject.get(), "Event was " + ((syncronizedObject.get() == 0) ? "not risen" : "risen more than once"));
         }
     }
 
@@ -145,35 +188,6 @@ public class ServerShould {
             for (int index = 0; index < sending.length; index++) {
                 assertEquals(sending[index], syncronizedObject.get(index));
             }
-        }
-    }
-
-    @Test
-    void interpretAndNotifyServerStartedEvent() throws Exception {
-        final AtomicInteger syncronizedObject = new AtomicInteger(0);
-
-        Server uut = getServer();
-        uut.subscribeToServerStartedEvents(() -> {
-            synchronized (syncronizedObject) {
-                syncronizedObject.incrementAndGet();
-                syncronizedObject.notify();
-            }
-        });
-
-        synchronized (syncronizedObject) {
-            // we didn't launch the event, so nothing should invoke
-            try {
-                syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
-            } catch (InterruptedException ignored) {}
-            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
-        }
-
-        // server started is interpreted by messages
-        uut.raiseServerMessageEvent("[14:51:38] [Server thread/INFO]: Done (6.328s)! For help, type \"help\"");
-
-        synchronized (syncronizedObject) {
-            syncronizedObject.wait(WAIT_TIMEOUT);
-            assertEquals(1, syncronizedObject.get(), "Event was not risen, or was risen more than once");
         }
     }
 }

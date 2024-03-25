@@ -9,7 +9,6 @@ import dev.watchwolf.serversmanager.rpc.RequesteeIpGetter;
 import dev.watchwolf.serversmanager.rpc.ServersManagerLocalImplementation;
 import dev.watchwolf.serversmanager.server.ServersManager;
 import dev.watchwolf.serversmanager.server.instantiator.DockerizedServerInstantiator;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -18,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static dev.watchwolf.serversmanager.ITServersManagerRPCShould.killAllDockerServers;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Timeout(10*60)
@@ -52,26 +52,30 @@ public class ITServersManagerShould {
 
     @Test
     public void startAServer() throws Exception {
-        final AtomicBoolean started = new AtomicBoolean(false);
+        try {
+            final AtomicBoolean started = new AtomicBoolean(false);
 
-        ServerStartedEvent serverStartedEventManager = () -> {
-            System.out.println("[!] Server started");
+            ServerStartedEvent serverStartedEventManager = () -> {
+                System.out.println("[!] Server started");
+                synchronized (started) {
+                    if (started.get()) throw new RuntimeException("Got two 'server started' events");
+                    started.set(true);
+                    started.notify();
+                }
+            };
+
+            // start the server
+            String serverIp = startServer("1.19", serverStartedEventManager);
+            assertNotEquals("", serverIp, "Expected a server IP; got error instead");
+
+            // wait for server to notify
+            int timeout = MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT * 60_000;
             synchronized (started) {
-                if (started.get()) fail("Got two 'server started' events");
-                started.set(true);
-                started.notify();
+                started.wait(timeout);
+                assertTrue(started.get(), "Didn't get server started event");
             }
-        };
-
-        // start the server
-        String serverIp = startServer("1.19", serverStartedEventManager); // TODO close server
-        assertNotEquals("", serverIp, "Expected a server IP; got error instead");
-
-        // wait for server to notify
-        int timeout = MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT*60_000;
-        synchronized (started) {
-            started.wait(timeout);
-            assertTrue(started.get(), "Didn't get server started event");
+        } finally {
+            assertTrue(killAllDockerServers().length > 0, "Expected (at least) one server to be closed; got 0 instead"); // TODO close server without killing docker
         }
     }
 
