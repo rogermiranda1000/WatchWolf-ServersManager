@@ -3,12 +3,14 @@
 # default variables
 unit=0
 integration=0
+test_match=""
 
 # parse params
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --unit) unit=1 ;;
         --integration) integration=1 ;;
+        --tests) test_match="$2" ; shift ;;
         
         *) echo "[e] Unknown parameter passed: $1" >&2 ; exit 1 ;;
     esac
@@ -57,14 +59,26 @@ if [ $integration -eq 1 ]; then
     mkdir -p "$integration_tests_report_path"
 
     # run integration tests
-    docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
-                    -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
-                    -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
-                    maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify                                                       \
-                            -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true                                    \
-                            -X -Dlog4j2.debug --file '/compile'                                                                                     \
-            2>&1 | tee "$integration_tests_report_path/docker-log.txt" # forward to file
-    result=$?
+    if [ ! -z "$test_match" ]; then
+        echo "[v] Running filtered tests: $test_match"
+        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
+                        -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
+                        -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
+                        maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify                                                       \
+                                -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true                                    \
+                                -D it.test="$test_match" -X -Dlog4j2.debug --file '/compile'                                                            \
+                2>&1 | tee "$integration_tests_report_path/docker-log.txt" # forward to file
+        result=$?
+    else
+        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 -v /var/run/docker.sock:/var/run/docker.sock                \
+                        -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)                          \
+                        -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                                                      \
+                        maven:3.8.3-openjdk-17 mvn test failsafe:integration-test failsafe:verify                                                       \
+                                -P local-ww-core-profile,integration-test -Dmaven.test.redirectTestOutputToFile=true                                    \
+                                -X -Dlog4j2.debug --file '/compile'                                                                                     \
+                2>&1 | tee "$integration_tests_report_path/docker-log.txt" # forward to file
+        result=$?
+    fi
 
     # Convert xml reports into html
     docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17 mvn surefire-report:failsafe-report-only --file '/compile'

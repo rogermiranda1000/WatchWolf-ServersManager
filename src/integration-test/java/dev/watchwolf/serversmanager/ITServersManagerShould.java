@@ -9,7 +9,9 @@ import dev.watchwolf.serversmanager.rpc.RequesteeIpGetter;
 import dev.watchwolf.serversmanager.rpc.ServersManagerLocalImplementation;
 import dev.watchwolf.serversmanager.server.ServersManager;
 import dev.watchwolf.serversmanager.server.instantiator.DockerizedServerInstantiator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -18,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Timeout(10*60)
 public class ITServersManagerShould {
     public static final int MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT = 7;
 
@@ -28,11 +31,7 @@ public class ITServersManagerShould {
         }
     }
 
-    public static String startServer(ServerStartedEvent onServerStart) throws IOException {
-        CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
-            System.err.println("[e] Error: " + err);
-        };
-
+    public static String startServer(String version, ServerStartedEvent onServerStart, CapturedExceptionEvent capturedExceptionEventManager) throws IOException {
         RequesteeIpGetter ipGetter = new LocalIpRequesteeMock();
 
         ServersManager serversManager = new ServersManager(new DockerizedServerInstantiator());
@@ -40,7 +39,15 @@ public class ITServersManagerShould {
         ArrayList<Plugin> plugins = new ArrayList<>();
 
         // start the server
-        return serversManagerPetitions.startServer("Spigot", "1.19", plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
+        return serversManagerPetitions.startServer("Spigot", version, plugins, WorldType.FLAT, new ArrayList<>(), new ArrayList<>());
+    }
+
+    public static String startServer(String version, ServerStartedEvent onServerStart) throws IOException {
+        CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
+            System.err.println("[e] Error: " + err);
+        };
+
+        return startServer(version, onServerStart, capturedExceptionEventManager);
     }
 
     @Test
@@ -57,7 +64,7 @@ public class ITServersManagerShould {
         };
 
         // start the server
-        String serverIp = startServer(serverStartedEventManager);
+        String serverIp = startServer("1.19", serverStartedEventManager); // TODO close server
         assertNotEquals("", serverIp, "Expected a server IP; got error instead");
 
         // wait for server to notify
@@ -65,6 +72,47 @@ public class ITServersManagerShould {
         synchronized (started) {
             started.wait(timeout);
             assertTrue(started.get(), "Didn't get server started event");
+        }
+    }
+
+    @Test
+    public void reportErrorIfDesiredServerNotPresent() throws Exception {
+        String expectedError = "Couldn't start a Spigot server, on 1.0";
+
+        ServerStartedEvent serverStartedEventManager = () -> {
+            throw new RuntimeException("Got 'server started' even when it should be impossible to start this server");
+        };
+
+        final ArrayList<String> errors = new ArrayList<>();
+        CapturedExceptionEvent capturedExceptionEventManager = (err) -> {
+            System.err.println("[e] Error: " + err);
+            synchronized (errors) {
+                errors.add(err);
+                errors.notify();
+            }
+        };
+
+        // (try to) start the server
+        String serverIp = startServer("1.0", serverStartedEventManager, capturedExceptionEventManager); // TODO close server
+        assertEquals("", serverIp, "Expected error while starting the server; got IP instead");
+
+        // wait for server to notify
+        boolean foundError = false;
+        long startingAt = System.currentTimeMillis();
+        int timeout = MINUTES_WAIT_FOR_SERVER_TO_START_UNTIL_TIMEOUT*60_000;
+        while (!foundError && (System.currentTimeMillis() - startingAt) < timeout) {
+            try {
+                synchronized (errors) {
+                    errors.wait(5_000);
+                    if (errors.get(errors.size()-1).startsWith(expectedError)) {
+                        foundError = true;
+                    }
+                }
+            } catch (InterruptedException ignore) {} // 5s elapsed; try again later
+        }
+
+        synchronized (errors) {
+            assertTrue(foundError, "Couldn't get the expected error '" + expectedError + " [...]'. List of errors got: " + errors.toString());
         }
     }
 }

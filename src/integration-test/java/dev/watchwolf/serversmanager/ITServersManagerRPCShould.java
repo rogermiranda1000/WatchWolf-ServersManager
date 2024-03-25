@@ -1,15 +1,16 @@
 package dev.watchwolf.serversmanager;
 
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,13 +24,16 @@ public class ITServersManagerRPCShould {
                 // target: servers manager ; return: no ; operation: start server
                 0b0001_0_000, 0b00000000,
                 // server type (String; "Spigot")
-                0x00, 0x06, // 6 character-long string
+                0x06, 0x00, // 6 character-long string
                 'S', 'p', 'i', 'g', 'o', 't',
                 // server version (String; "1.19")
-                0x00, 0x04, // 4 character-long string
+                0x04, 0x00, // 4 character-long string
                 '1', '.', '1', '9',
-                // plugins, maps & config files (arrays; all empty)
+                // plugins (empty)
                 0x00, 0x00,
+                // server type (flat)
+                0x01, 0x00,
+                // maps & config files (arrays; all empty)
                 0x00, 0x00,
                 0x00, 0x00
         };
@@ -47,6 +51,7 @@ public class ITServersManagerRPCShould {
                 ServersManager.main(new String[]{});
             } catch (Exception ex) {
                 LOGGER.error("Exception while running main thread", ex);
+                throw new RuntimeException(ex);
             }
         });
     }
@@ -55,7 +60,9 @@ public class ITServersManagerRPCShould {
         int tries = 10;
         while(tries > 0) {
             try {
-                return new Socket(host, port);
+                Socket socket = new Socket(host, port);
+                socket.setSoTimeout(20_000); // if no data in 20s, raise timeout
+                return socket;
             } catch(IOException ex) {
                 LOGGER.debug("Couldn't connect to " + host + ":" + port + "; trying again after 2s...");
                 try {
@@ -65,6 +72,26 @@ public class ITServersManagerRPCShould {
             }
         }
         throw new TimeoutException("Exceeded max retries to connect to " + host + ":" + port);
+    }
+
+    public static String[] killAllDockerServers() {
+        // TODO kill all dockers that are servers
+        // TODO get linked server folder paths
+        String []serverFolderPaths = new String[]{"/TODO"};
+        return serverFolderPaths;
+    }
+
+    public static int getByte(BufferedReader in, int timeout) throws TimeoutException,IOException {
+        Integer val = null;
+        long startingAt = System.currentTimeMillis();
+        while (val == null && (System.currentTimeMillis() - startingAt) < timeout) {
+            try {
+                val = in.read();
+            } catch (SocketTimeoutException ignore) {}
+        }
+
+        if (val == null) throw new TimeoutException("Couldn't get one byte in " + timeout + "ms");
+        return val;
     }
 
     @Test
@@ -82,7 +109,8 @@ public class ITServersManagerRPCShould {
 
             // we expect to get the IP
             // from: servers manager ; return: yes ; operation: start server
-            int startPacket = in.read();
+            int startPacket = getByte(in, 8*60_000);
+
             assertEquals(0b0001_1_000, startPacket, "We were expecting a return from servers manager of the 'start server' request; got " + System.out.format("%08d%n", startPacket) + " instead");
             assertEquals(0b00000000, in.read());
             int ipLength = in.read() | (in.read()<<8);
@@ -91,6 +119,13 @@ public class ITServersManagerRPCShould {
             String ip = getString(in, ipLength);
             LOGGER.debug("IP got: " + ip);
             assertEquals(8001, Integer.valueOf(ip.split(":")[1]));
+        }
+
+        // killing the server docker should also be treated as 'server closed'
+        String []serverFolders = killAllDockerServers();
+        Thread.sleep(5_000); // wait for the event to reach WW-ServersManager TODO maybe we could get the 'server stopped' event?
+        for (String serverFolder : serverFolders) {
+            assertFalse(new File(serverFolder).exists(), "Expected server folder to be clear; got existing folder instead");
         }
 
         LOGGER.info("Waiting for main thread to exit...");
