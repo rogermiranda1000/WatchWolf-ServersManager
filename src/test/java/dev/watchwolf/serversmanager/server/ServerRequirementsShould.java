@@ -5,14 +5,18 @@ import com.google.common.jimfs.Jimfs;
 import dev.watchwolf.core.entities.WorldType;
 import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
+import dev.watchwolf.serversmanager.server.plugins.PluginDeserializer;
+import nl.altindag.log.LogCaptor;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
@@ -23,7 +27,8 @@ import java.util.Collection;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ServerRequirementsShould {
     public static final String TARGET_SERVER_JAR = "ServersManager.jar";
@@ -57,6 +62,18 @@ public class ServerRequirementsShould {
         Path dstPath = fileSystem.getPath("/dst");
         Files.createDirectories(dstPath);
         return dstPath;
+    }
+
+    private static void setDeserializer(PluginDeserializer pluginDeserializer) throws NoSuchFieldException,IllegalAccessException {
+        Field deserializerField = ServerRequirements.class.getDeclaredField("deserializer");
+        deserializerField.setAccessible(true);
+
+        // unset 'final' modifier
+        /*Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(deserializerField, deserializerField.getModifiers() & ~Modifier.FINAL);*/
+
+        deserializerField.set(null, pluginDeserializer);
     }
 
     @Test
@@ -154,5 +171,39 @@ public class ServerRequirementsShould {
             assertTrue(Files.exists(expectedJar));
             // TODO add verify calls to each of the expected methods to call
         }
+    }
+
+    @Test
+    void logAllPluginsAvailable() throws Exception {
+        // arrange
+        try(FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
+            LogCaptor logCaptor = LogCaptor.forClass(ServerRequirements.class)) {
+            // create usual-plugins folder
+            Path usualPluginsFolder = fs.getPath("/plugins");
+            Files.createDirectory(usualPluginsFolder);
+
+            Files.createFile(usualPluginsFolder.resolve("WatchWolf-0.1-1.8-LATEST.jar"));
+            Files.createFile(usualPluginsFolder.resolve("MyValuablePlugin-1.0-1.8-LATEST.jar"));
+
+            // create mock to point to created folder
+            PluginDeserializer pluginDeserializer = mock(PluginDeserializer.class);
+            when(pluginDeserializer.getUsualPluginsPath())
+                    .thenReturn(usualPluginsFolder);
+
+            setDeserializer(pluginDeserializer); // set mock as deserializer
+
+            // act
+            ServerRequirements.logServerFolderInfo();
+
+            // assert
+            assertTrue(logCaptor.getLogs().contains("Usual plugins: [WatchWolf-0.1-1.8-LATEST.jar, MyValuablePlugin-1.0-1.8-LATEST.jar]"),
+                    "Expected ServerRequirements to log the usual plugins on the folder ('WatchWolf' and 'MyValuablePlugin'), but got nothing.\nCaptured logs:\n" + logCaptor.getLogs().toString());
+        }
+    }
+
+    @Test
+    void logAllServersAvailable() throws Exception {
+        ServerRequirements.logServerFolderInfo();
+        fail(); // TODO
     }
 }

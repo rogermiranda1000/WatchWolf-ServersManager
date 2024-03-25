@@ -8,6 +8,8 @@ import dev.watchwolf.core.entities.files.plugins.UsualPlugin;
 import dev.watchwolf.serversmanager.server.plugins.PluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.ServersManagerPluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.UnableToAchievePluginException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,13 +19,19 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ServerRequirements {
     public static final String SHARED_TMP_FOLDER = "{pwd}/{offset}/tmp";
 
-    private static final PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
+    private static final Logger logger = LogManager.getLogger(ServerRequirements.class.getName());
+    private static boolean serverFolderInfoLogged = false;
+
+    private static PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
 
     private static void copyServerJar(String serverType, String serverVersion, Path baseFolder, Path targetFolder, String jarName) throws ServerJarUnavailableException,IOException {
         Path serverJar = baseFolder.resolve("server-types/" + serverType + "/" + serverVersion + ".jar");
@@ -63,7 +71,26 @@ public class ServerRequirements {
         return tmpFolderBase + "/" + getHashFromServerPath(localServerFolder);
     }
 
+    public static void logServerFolderInfo() throws IOException {
+        // print all usual plugins got
+        Path usualPluginsPath = deserializer.getUsualPluginsPath();
+        Set<String> usualPlugins = Files.list(usualPluginsPath)
+                .filter(file -> !Files.isDirectory(file))
+                .map(file -> file.getFileName().toString())
+                .filter((name) -> name.endsWith(".jar"))
+                .collect(Collectors.toSet());
+        ServerRequirements.logger.info("Usual plugins: " + usualPlugins.toString());
+
+        // print all server types got
+        // TODO
+
+        // now we've logged the information
+        ServerRequirements.serverFolderInfoLogged = true;
+    }
+
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName, Path copyServerContents) throws IOException {
+        if (!ServerRequirements.serverFolderInfoLogged) ServerRequirements.logServerFolderInfo();
+
         Path serverFolder = ServerRequirements.createServerFolder();
 
         // copy server (type&version)

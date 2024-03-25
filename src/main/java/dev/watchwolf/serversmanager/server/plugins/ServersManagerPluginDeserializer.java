@@ -5,6 +5,7 @@ import dev.watchwolf.core.entities.files.plugins.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class ServersManagerPluginDeserializer implements PluginDeserializer {
     /**
@@ -21,5 +22,14 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
         else if (plugin instanceof UsualPlugin); // TODO
         else if (plugin instanceof UploadedPlugin); // TODO
         else throw new IllegalArgumentException("Couldn't deserialize plugin of type " + plugin.getClass().getName());
+    }
+
+    /**
+     * Returns the path of all the usual plugins
+     * @return Usual plugins location
+     */
+    @Override
+    public Path getUsualPluginsPath() throws IOException {
+        return null; // TODO
     }
 }
