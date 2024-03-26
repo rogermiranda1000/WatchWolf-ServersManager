@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -19,8 +20,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -150,6 +150,167 @@ public class ServerRequirementsShould {
         // assert
         assertTrue(Files.exists(outFile)); // the file should exist
         assertEquals("eula=true", Files.readAllLines(outFile).get(0)); // eula should be accepted
+    }
+
+
+
+    //  ============================
+    //    setTimingsSettings tests
+    //  ============================
+
+
+    private static Method getSetTimingsSettings() throws NoSuchMethodException {
+        Method method = ServerRequirements.class.getDeclaredMethod("setTimingsSettings", Path.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    @Test
+    void setTimingsSettings() throws Exception {
+        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+        Path dstPath = givenACreatedDestinyFolder(fileSystem);
+        Path outFile = dstPath.resolve("bukkit.yml");
+
+        // act
+        getSetTimingsSettings().invoke(null, dstPath);
+
+        // assert
+        assertTrue(Files.exists(outFile)); // the file should exist
+        String outFileContents = String.join("\n", Files.readAllLines(outFile));
+        Map<Object, Object> document = new Yaml().load(outFileContents);
+        assertNotNull(document, "Couldn't parse yaml: " + outFileContents);
+        assertTrue(document.containsKey("settings"), "Couldn't find key 'settings' in yaml (" + document.toString() + ")");
+        Map<Object, Object> settings = (Map<Object, Object>)document.get("settings");
+        assertTrue(settings.containsKey("plugin-profiling"), "Couldn't find key 'plugin-profiling' in yaml.settings (" + settings.toString() + ")");
+        assertTrue((boolean)settings.get("plugin-profiling"), "'plugin-profiling' (under yaml.settings) must be set on true");
+    }
+
+
+
+    //  =============================
+    //    setServerProperties tests
+    //  =============================
+
+
+    private static Method getSetServerProperties() throws NoSuchMethodException {
+        Method method = ServerRequirements.class.getDeclaredMethod("setServerProperties", Path.class, int.class, WorldType.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    private static Map<String, String> givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType() throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+        Path dstPath = givenACreatedDestinyFolder(fileSystem);
+        Path outFile = dstPath.resolve("server.properties");
+        int port = 25555;
+        WorldType type = WorldType.FLAT;
+
+        getSetServerProperties().invoke(null, dstPath, port, type);
+
+        Map<String, String> contents = new HashMap<>();
+        for (String line : Files.readAllLines(outFile)) {
+            String []key_value = line.split("=");
+            if (key_value.length != 2) {
+                System.err.println("Error while parsing '" + line + "': expect key-value separated by character '='; skipping...");
+                continue;
+            }
+
+            contents.put(key_value[0], key_value[1]);
+        }
+        return contents;
+    }
+
+    @Test
+    void setServerPropertiesFile() throws Exception {
+        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+        Path dstPath = givenACreatedDestinyFolder(fileSystem);
+        Path outFile = dstPath.resolve("server.properties");
+        int port = 25555;
+        WorldType type = WorldType.FLAT;
+
+        // act
+        getSetServerProperties().invoke(null, dstPath, port, type);
+
+        // assert
+        assertTrue(Files.exists(outFile)); // the file should exist
+    }
+
+    @Test
+    void setServerPropertiesPort() throws Exception {
+        Map<String, String> serverPropertiesContents = givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType();
+
+        // assert
+        assertTrue(serverPropertiesContents.containsKey("server-port"), "Expected 'server-port' property to be set; got nothing instead");
+        int serverPort = Integer.parseInt(serverPropertiesContents.get("server-port"));
+        assertEquals(25555, serverPort, "Expected server port to be set to 25555; got " + serverPort);
+    }
+
+    @Test
+    void clearServerPropertiesSpawnProtection() throws Exception {
+        Map<String, String> serverPropertiesContents = givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType();
+
+        // assert
+        assertTrue(serverPropertiesContents.containsKey("spawn-protection"), "Expected spawn chunks protection property to be specified; got otherwise instead");
+        int spawnChunkProtection = Integer.parseInt(serverPropertiesContents.get("spawn-protection"));
+        assertEquals(0, spawnChunkProtection, "Expected spawn chunks protection to be disabled; got otherwise instead");
+    }
+
+    @Test
+    void setServerPropertiesWorldType() throws Exception {
+        Map<String, String> serverPropertiesContents = givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType();
+
+        // assert
+        assertTrue(serverPropertiesContents.containsKey("level-type"), "Expected 'level-type' property to be set; got nothing instead");
+        assertEquals("FLAT", serverPropertiesContents.get("level-type"), "Expected world type to be flat (FLAT); got '" + serverPropertiesContents.get("level-type") + "' instead");
+    }
+
+    @Test
+    void setServerPropertiesOnlineMode() throws Exception {
+        Map<String, String> serverPropertiesContents = givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType();
+
+        // assert
+        assertTrue(serverPropertiesContents.containsKey("online-mode"), "Expected online mode property to be specified; got otherwise instead");
+        boolean onlineMode = Boolean.parseBoolean(serverPropertiesContents.get("online-mode"));
+        assertFalse(onlineMode, "Expected online mode to be set as false; got otherwise instead");
+    }
+
+    @Test
+    void setServerPropertiesWhitelistMode() throws Exception {
+        Map<String, String> serverPropertiesContents = givenAGeneratedServerPropertiesFileWithPort25555AndFlatWorldType();
+
+        // assert
+        assertTrue(serverPropertiesContents.containsKey("white-list"), "Expected whitelist property to be specified; got otherwise instead");
+        boolean whitelistMode = Boolean.parseBoolean(serverPropertiesContents.get("white-list"));
+        assertTrue(whitelistMode, "Expected whitelist mode to be set; got otherwise instead");
+    }
+
+
+
+    //  =============================
+    //    setServerProperties tests
+    //  =============================
+
+
+    private static Method getSetWatchWolfServerProperties() throws NoSuchMethodException {
+        Method method = ServerRequirements.class.getDeclaredMethod("setWatchWolfServerProperties", Path.class, String.class, int.class, String.class, String.class);
+        method.setAccessible(true);
+        return method;
+    }
+
+    @Test
+    void setWatchWolfServerPropertiesPortToUse() throws Exception {
+        FileSystem fileSystem = Jimfs.newFileSystem(Configuration.unix());
+        Path dstPath = givenACreatedDestinyFolder(fileSystem);
+        Path outFile = dstPath.resolve("plugins").resolve("WatchWolf").resolve("config.yml");
+        int port = 8002;
+
+        // act
+        getSetWatchWolfServerProperties().invoke(null, dstPath, "", port, "", "");
+
+        // assert
+        assertTrue(Files.exists(outFile)); // the file should exist
+        List<String> fileContents = Files.readAllLines(outFile);
+        assertTrue(fileContents.contains("use-port: " + port), "Expecting port set to " + port + "; got otherwise instead.\nContents: " + fileContents.toString());
     }
 
 

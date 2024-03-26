@@ -207,6 +207,6 @@ public class ITServersManagerRPCShould {
 
     @Test
     public void supportMultipleSessions() throws Exception {
-        Thread.sleep(5_000);
+        // TODO
     }
 }

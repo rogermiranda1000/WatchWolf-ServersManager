@@ -201,9 +201,9 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
                     .withName(serverId)
                     .withHostConfig(
                             new HostConfig().withPortBindings(
-                                    PortBinding.parse(port + ":" + port + "/tcp"),
-                                    PortBinding.parse(port + ":" + port + "/udp"),
-                                    PortBinding.parse(socketPort + ":" + socketPort)
+                                    PortBinding.parse("25565:" + port + "/tcp"),
+                                    PortBinding.parse("25565:" + port + "/udp"),
+                                    PortBinding.parse("25566:" + socketPort)
                             ))
                     .withExposedPorts(new ExposedPort(port, InternetProtocol.TCP),
                             new ExposedPort(port, InternetProtocol.UDP),
