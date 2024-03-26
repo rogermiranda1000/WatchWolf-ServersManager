@@ -203,25 +203,6 @@ public class ITServersManagerRPCShould {
             LOGGER.debug("Checking if folder " + serverFolder + " was deleted...");
             assertFalse(new File(serverFolder).getCanonicalFile().exists(), "Expected server folder to be clear; got existing folder instead");
         }
-
-        // did we get an interrupt?
-        Throwable raisedInterruptException = null;
-        synchronized (this.mainThreadExceptions) {
-            for (Throwable ex : this.mainThreadExceptions) {
-
-                if (ex instanceof RuntimeException) {
-                    if (ex.getCause() instanceof InterruptedException) {
-                        if (((InterruptedException)ex.getCause()).getMessage().equals("Closed server before establishing client connection")) {
-                            raisedInterruptException = ex;
-                            break; // found
-                        }
-                    }
-                }
-
-            }
-            this.mainThreadExceptions.remove(raisedInterruptException); // this is expected; don't report it on the @BeforeEach
-        }
-        assertNotNull(raisedInterruptException, "Expected one 'Closed server before establishing client connection' exception, got nothing instead");
     }
 
     @Test

@@ -268,4 +268,10 @@ public class ITDockerizedServerInstantiatorShould {
             if (container != null) killContainer(container);
         }
     }
+
+    @Test
+    @Disabled
+    void closeOnlyTheServersLaunchedByItself() {
+        // TODO launch servers from two different instantiators and close one
+    }
 }

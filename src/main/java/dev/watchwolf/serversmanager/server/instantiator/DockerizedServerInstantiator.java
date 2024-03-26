@@ -8,10 +8,14 @@ import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientBuilder;
 import dev.watchwolf.serversmanager.server.ServerRequirements;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static dev.watchwolf.serversmanager.server.ServerRequirements.getPrivateServerFolder;
 
 public class DockerizedServerInstantiator implements ServerInstantiator {
     public interface StdioCallback {
@@ -48,7 +52,53 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         }
     }
 
+    public static class DockerContainerStoppedObserver extends Thread {
+        private static final int DELAY_BETWEEN_CHECKS = 1_500;
+
+        private final Logger logger;
+        private final String serverId;
+        private final Server callable;
+
+        public DockerContainerStoppedObserver(String serverId, Server callable) {
+            this.logger = LogManager.getLogger(DockerContainerStoppedObserver.class.getName());
+
+            this.serverId = serverId;
+            this.callable = callable;
+        }
+
+        public String getServerId() {
+            return this.serverId;
+        }
+
+        @Override
+        public void run() {
+            this.logger.info("Listening for Docker " + this.serverId + " until it stops...");
+
+            DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+            final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
+
+            boolean dockerStarted;
+            do {
+                ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
+                        .withNameFilter(Collections.singletonList(this.serverId));
+
+                List<Container> servers = listContainersCmd.exec();
+                dockerStarted = !servers.isEmpty();
+
+                try {
+                    if (dockerStarted) Thread.sleep(DELAY_BETWEEN_CHECKS);
+                } catch (InterruptedException ignore) {}
+            } while (dockerStarted);
+
+            // server stopped
+            this.logger.info("Docker " + this.serverId + " closed");
+            this.callable.raiseServerStoppedEvent();
+        }
+    }
+
     public static final int BASE_PORT = 8001;
+
+    private final ArrayList<DockerContainerStoppedObserver> serverListeners = new ArrayList<>();
 
     private static String getDockerCommand(String jarName, String ram) {
         String ramParam = "-XX:MaxRAMFraction=1"; // unlimited memory
@@ -174,17 +224,52 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
         server.set(new Server(DockerizedServerInstantiator.getStartedServerIp(container.getId())));
 
-        // we need to perform some cleanup if the server stops
-        server.get().subscribeToServerStoppedEvents(() -> {
-            // on server close, close the container
+        synchronized (this) {
+            // launch server stopped event when stopped
+            DockerContainerStoppedObserver observer = new DockerContainerStoppedObserver(serverId, server.get());
+            this.serverListeners.add(observer);
+            observer.start();
+        }
+
+        return server.get();
+    }
+
+    public void closeAllLaunchedServers() {
+        DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
+        final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
+
+        ListContainersCmd listContainersCmd = dockerClient.listContainersCmd()
+                .withNameFilter(Collections.singletonList("MC_Server-*"));
+
+        List<Container> servers = listContainersCmd.exec();
+        System.out.println("Server dockers got: " + servers.toString());
+        for (Container container : servers) {
+            boolean anyNameMatch = false;
+            synchronized (this) {
+                for (String name : container.getNames()) {
+                    anyNameMatch |= this.serverListeners.stream().anyMatch(lis -> lis.getServerId().equals(name));
+                }
+            }
+            if (!anyNameMatch) continue; // not launched by this instantiator; skip
+
+            System.out.println("Stopping container " + container.getId() + "...");
             try {
+                //getDockerClient().stopContainerCmd(container.getId()).exec();
                 dockerClient.killContainerCmd(container.getId()).exec();
             } catch (Exception ignore) {}
             dockerClient.removeContainerCmd(container.getId()).exec();
-        });
+        }
+    }
 
-        // TODO launch server stopped event when stopped
+    @Override
+    public void close() {
+        this.closeAllLaunchedServers(); // this will cause all the threads to exit
 
-        return server.get();
+        // wait for all the threads to stop
+        for (DockerContainerStoppedObserver observer : this.serverListeners) {
+            try {
+                observer.join();
+            } catch (InterruptedException ignore) {}
+        }
     }
 }

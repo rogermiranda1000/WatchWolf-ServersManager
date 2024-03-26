@@ -10,13 +10,14 @@ import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 import dev.watchwolf.serversmanager.server.ip.ExternalizeIpManager;
 import dev.watchwolf.serversmanager.server.ip.IpManager;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
 
-public class ServersManager {
+public class ServersManager implements Closeable {
     public static final String TARGET_SERVER_JAR = "ServersManager.jar";
 
     private final ServerInstantiator serverInstantiator;
@@ -25,6 +26,11 @@ public class ServersManager {
     public ServersManager(ServerInstantiator serverInstantiator) {
         this.serverInstantiator = serverInstantiator;
         this.ipManager = new ExternalizeIpManager(System.getenv("MACHINE_IP"), System.getenv("PUBLIC_IP"));
+    }
+
+    @Override
+    public void close() {
+        this.serverInstantiator.close();
     }
 
     /**
@@ -48,8 +54,9 @@ public class ServersManager {
         // we need to perform some cleanup if the server stops
         server.subscribeToServerStoppedEvents(() -> {
             // and clear the folder
+            System.out.println("Server stopped; clearing folder...");
             try {
-                Files.delete(Paths.get(path));
+                ServerRequirements.clearFolder(path);
             } catch (IOException ex) {
                 System.err.println(ex.toString());
             }

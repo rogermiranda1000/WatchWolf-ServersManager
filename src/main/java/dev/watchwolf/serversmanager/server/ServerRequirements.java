@@ -8,6 +8,7 @@ import dev.watchwolf.core.entities.files.plugins.UsualPlugin;
 import dev.watchwolf.serversmanager.server.plugins.PluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.ServersManagerPluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.UnableToAchievePluginException;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +23,6 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ServerRequirements {
     public static final String SHARED_TMP_FOLDER = "{pwd}/{offset}/tmp";
@@ -101,6 +101,15 @@ public class ServerRequirements {
 
         // now we've logged the information
         ServerRequirements.serverFolderInfoLogged = true;
+    }
+
+    /**
+     * Clears the contents of the folder created by `setupFolder`
+     * @param folder setupFolder return
+     */
+    public static void clearFolder(String folder) throws IOException {
+        String serverFolder = getPrivateServerFolder(getHashFromServerPath(folder));
+        FileUtils.deleteDirectory(new File(serverFolder));
     }
 
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {

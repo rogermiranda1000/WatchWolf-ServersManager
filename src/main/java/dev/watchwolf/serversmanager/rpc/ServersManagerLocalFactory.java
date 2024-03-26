@@ -16,6 +16,7 @@ public class ServersManagerLocalFactory implements RPCImplementerFactory {
 
         ServersManagerLocalImplementation localImplementation = new ServersManagerLocalImplementation(serversManager, stub, stub, ipGetter);
         stub.setRunner(localImplementation);
+        stub.subscribeToCloseEvents(serversManager);
 
         return stub;
     }
