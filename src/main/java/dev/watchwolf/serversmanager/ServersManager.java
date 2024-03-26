@@ -46,6 +46,7 @@ public class ServersManager {
         }
     }
 
+    // TODO call on ctrl-c
     public static synchronized void stop() {
         ServersManager.started = false;
 

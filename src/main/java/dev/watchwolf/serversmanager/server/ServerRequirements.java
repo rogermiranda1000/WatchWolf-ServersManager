@@ -40,9 +40,14 @@ public class ServerRequirements {
         Files.copy(serverJar, targetFolder.resolve(jarName));
     }
 
-    static Path createServerFolder() throws IOException {
+    public static String getPrivateServerFolder(String id) {
         String offset = (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT");
-        String serverFolder = SHARED_TMP_FOLDER.replace("{pwd}", ".").replace("{offset}", offset) + "/" + System.currentTimeMillis();
+        String serverFolder = SHARED_TMP_FOLDER.replace("{pwd}", ".").replace("{offset}", offset) + "/" + id;
+        return serverFolder;
+    }
+
+    static Path createServerFolder() throws IOException {
+        String serverFolder = getPrivateServerFolder(String.valueOf(System.currentTimeMillis()));
         Files.createDirectories(new File(serverFolder).toPath());
         return Paths.get(serverFolder);
     }

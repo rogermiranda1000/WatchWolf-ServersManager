@@ -14,15 +14,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.BindException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeoutException;
 
+import static dev.watchwolf.serversmanager.server.ServerRequirements.getPrivateServerFolder;
 import static dev.watchwolf.serversmanager.server.instantiator.ITDockerizedServerInstantiatorShould.getDockerClient;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -110,8 +107,10 @@ public class ITServersManagerRPCShould {
             for (ContainerMount mount : container.getMounts()) {
                 if (!mount.getDestination().equals("/server")) LOGGER.warn("Got non-server mount: " + mount.getSource());
 
-                serverFolderPaths.add(mount.getSource());
+                /*serverFolderPaths.add(mount.getSource());*/ // getSource will return a different folder due to how WSL Docker works
             }
+            if (container.getNames().length != 1) LOGGER.warn("Got different than 1 container name: " + Arrays.toString(container.getNames()));
+            else serverFolderPaths.add(getPrivateServerFolder(container.getNames()[0].replace("MC_Server-", "")));
 
             // kill the server
             LOGGER.debug("Stopping container " + container.getId() + "...");
@@ -150,17 +149,21 @@ public class ITServersManagerRPCShould {
 
     @AfterEach
     public void cleanup() throws Throwable {
+        ArrayList<Throwable> exceptions = null;
         synchronized (this.mainThreadExceptions) {
-            if (!this.mainThreadExceptions.isEmpty()) {
-                LOGGER.warn("Got exceptions on main thread:");
-                for (Throwable ex : this.mainThreadExceptions) LOGGER.warn(ex);
-
-                throw this.mainThreadExceptions.get(0); // the first exception is most provably the one that caused the crash
-            }
+            exceptions = this.mainThreadExceptions;
         }
 
         LOGGER.info("Waiting for main thread to exit...");
         stopJarMainRunnable();
+
+        if (!exceptions.isEmpty()) {
+            LOGGER.warn("Got exceptions on main thread:");
+            for (Throwable ex : exceptions) LOGGER.warn(ex);
+
+            throw exceptions.get(0); // the first exception is most provably the one that caused the crash
+        }
+
         mainThread.join(8_000);
         assertFalse(mainThread.isAlive(), "Expected jar thread to be stopped; got otherwise instead");
     }
@@ -197,7 +200,8 @@ public class ITServersManagerRPCShould {
         assertTrue(serverFolders.length > 0, "Expected (at least) one server to be closed; got 0 instead");
         Thread.sleep(5_000); // wait for the event to reach WW-ServersManager TODO maybe we could get the 'server stopped' event?
         for (String serverFolder : serverFolders) {
-            assertFalse(new File(serverFolder).exists(), "Expected server folder to be clear; got existing folder instead");
+            LOGGER.debug("Checking if folder " + serverFolder + " was deleted...");
+            assertFalse(new File(serverFolder).getCanonicalFile().exists(), "Expected server folder to be clear; got existing folder instead");
         }
 
         // did we get an interrupt?
