@@ -3,6 +3,8 @@ package dev.watchwolf.serversmanager;
 import com.github.dockerjava.api.command.ListContainersCmd;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.ContainerMount;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.apache.logging.log4j.LogManager;
@@ -12,6 +14,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.BindException;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
@@ -26,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @Timeout(10*60)
 public class ITServersManagerRPCShould {
     private static Logger LOGGER = LogManager.getLogger(ITServersManagerRPCShould.class.getName());
+
+    private Thread mainThread;
+    private ArrayList<Throwable> mainThreadExceptions;
 
     public static byte []getStartServerSequence() {
         return new byte[]{
@@ -53,15 +59,23 @@ public class ITServersManagerRPCShould {
         return sb.toString();
     }
 
-    public static Thread getJarMainRunnable() {
+    public static Thread getJarMainRunnable(final ArrayList<Throwable> exceptions) {
         return new Thread(() -> {
             try {
                 ServersManager.main(new String[]{});
-            } catch (Exception ex) {
-                LOGGER.error("Exception while running main thread", ex);
-                throw new RuntimeException(ex);
+            } catch (Throwable ex) {
+                ex.printStackTrace();
+                if (exceptions != null) {
+                    synchronized (exceptions) {
+                        exceptions.add(ex);
+                    }
+                }
             }
         });
+    }
+
+    public static void stopJarMainRunnable() {
+        ServersManager.stop();
     }
 
     public static Socket waitUntilReadyAndConnect(String host, int port) throws TimeoutException {
@@ -124,12 +138,36 @@ public class ITServersManagerRPCShould {
         return val;
     }
 
+    @BeforeEach
+    public void launchJarRunnable() {
+        LOGGER.info("Launching main thread...");
+
+        // launch ServersManager.main in separate thread
+        this.mainThreadExceptions = new ArrayList<>();
+        this.mainThread = getJarMainRunnable(this.mainThreadExceptions);
+        this.mainThread.start();
+    }
+
+    @AfterEach
+    public void cleanup() throws Throwable {
+        synchronized (this.mainThreadExceptions) {
+            if (!this.mainThreadExceptions.isEmpty()) {
+                LOGGER.warn("Got exceptions on main thread:");
+                for (Throwable ex : this.mainThreadExceptions) LOGGER.warn(ex);
+
+                throw this.mainThreadExceptions.get(0); // the first exception is most provably the one that caused the crash
+            }
+        }
+
+        LOGGER.info("Waiting for main thread to exit...");
+        stopJarMainRunnable();
+        mainThread.join(8_000);
+        assertFalse(mainThread.isAlive(), "Expected jar thread to be stopped; got otherwise instead");
+    }
+
     @Test
     public void triggerAServerStartAfterStartServerRPCSequence() throws Exception {
-        // launch ServersManager.main in separate thread
-        Thread mainThread = getJarMainRunnable();
-        mainThread.start();
-        LOGGER.info("Main thread launched in parallel.");
+        killAllDockerServers(); // just in case, as this may create conflicts on the "clear folder" check
 
         String []serverFolders = null;
         try(Socket clientSocket = waitUntilReadyAndConnect("127.0.0.1", 8000);
@@ -155,18 +193,35 @@ public class ITServersManagerRPCShould {
             serverFolders = killAllDockerServers();
         }
 
+        // are the server contents clear?
         assertTrue(serverFolders.length > 0, "Expected (at least) one server to be closed; got 0 instead");
         Thread.sleep(5_000); // wait for the event to reach WW-ServersManager TODO maybe we could get the 'server stopped' event?
         for (String serverFolder : serverFolders) {
             assertFalse(new File(serverFolder).exists(), "Expected server folder to be clear; got existing folder instead");
         }
 
-        LOGGER.info("Waiting for main thread to exit...");
-        mainThread.join(2*60_000);
+        // did we get an interrupt?
+        Throwable raisedInterruptException = null;
+        synchronized (this.mainThreadExceptions) {
+            for (Throwable ex : this.mainThreadExceptions) {
+
+                if (ex instanceof RuntimeException) {
+                    if (ex.getCause() instanceof InterruptedException) {
+                        if (((InterruptedException)ex.getCause()).getMessage().equals("Closed server before establishing client connection")) {
+                            raisedInterruptException = ex;
+                            break; // found
+                        }
+                    }
+                }
+
+            }
+            this.mainThreadExceptions.remove(raisedInterruptException); // this is expected; don't report it on the @BeforeEach
+        }
+        assertNotNull(raisedInterruptException, "Expected one 'Closed server before establishing client connection' exception, got nothing instead");
     }
 
     @Test
     public void supportMultipleSessions() throws Exception {
-
+        Thread.sleep(5_000);
     }
 }

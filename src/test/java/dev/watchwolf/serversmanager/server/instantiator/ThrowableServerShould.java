@@ -255,4 +255,49 @@ java.lang.IllegalStateException: zip file closed
             assertEquals(1, syncronizedObject.get(), "Event was " + ((syncronizedObject.get() == 0) ? "not risen" : "risen more than once"));
         }
     }
+
+    @Test
+    void detectServerStartedByMessageCalledOnWrapper() throws Exception {
+        final AtomicInteger syncronizedObject = new AtomicInteger(0);
+
+        Server wrapper = super.getServer();
+        assertEquals(Server.class, wrapper.getClass());
+
+        ThrowableServer uut = new ThrowableServer(wrapper);
+        uut.subscribeToServerStartedEvents(() -> {
+            synchronized (syncronizedObject) {
+                syncronizedObject.incrementAndGet();
+                syncronizedObject.notify();
+            }
+        });
+
+        final String startupSequence = """
+[18:47:41] [Server thread/INFO]: Preparing level "world"
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:overworld
+[18:47:44] [Server thread/INFO]: Time elapsed: 118 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_nether
+[18:47:44] [Server thread/INFO]: Time elapsed: 101 ms
+[18:47:44] [Server thread/INFO]: Preparing start region for dimension minecraft:the_end
+[18:47:44] [Server thread/INFO]: Time elapsed: 81 ms
+[18:47:45] [Server thread/INFO]: [MineIt] WorldGuard plugin detected.
+[18:47:45] [Server thread/INFO]: Running delayed init tasks
+"""; // next we get the 'Done' message
+
+        for (String line : startupSequence.split("\n")) wrapper.raiseServerMessageEvent(line);
+
+        synchronized (syncronizedObject) {
+            // we didn't launch the event, so nothing should invoke
+            try {
+                syncronizedObject.wait(SMALL_ASSERT_TIMEOUT);
+            } catch (InterruptedException ignored) {}
+            assertEquals(0, syncronizedObject.get(), "Event was raised before invoking the function");
+        }
+
+        wrapper.raiseServerMessageEvent("[18:47:45] [Server thread/INFO]: Done (6.656s)! For help, type \"help\"");
+
+        synchronized (syncronizedObject) {
+            syncronizedObject.wait(WAIT_TIMEOUT);
+            assertEquals(1, syncronizedObject.get(), "Event was " + ((syncronizedObject.get() == 0) ? "not risen" : "risen more than once"));
+        }
+    }
 }
