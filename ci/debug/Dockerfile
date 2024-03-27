@@ -8,4 +8,4 @@ ADD ServersManager.jar /servers
 WORKDIR /servers
 
 ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["echo \"[v] WSL_MODE: $WSL_MODE\" ; echo \"[v] MACHINE_IP: $MACHINE_IP\" ; echo \"[v] PUBLIC_IP: $PUBLIC_IP\" ; echo \"[v] PARENT_PWD: $PARENT_PWD\" ; java -cp ServersManager.jar dev/watchwolf/serversmanager/ServersManager"]
+CMD ["echo \"[v] WSL_MODE: $WSL_MODE\" ; echo \"[v] MACHINE_IP: $MACHINE_IP\" ; echo \"[v] PUBLIC_IP: $PUBLIC_IP\" ; echo \"[v] PARENT_PWD: $PARENT_PWD\" ; echo \"[v] SERVER_PATH_SHIFT: $SERVER_PATH_SHIFT\" ; java -cp ServersManager.jar dev/watchwolf/serversmanager/ServersManager"]

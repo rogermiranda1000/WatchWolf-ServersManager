@@ -76,6 +76,7 @@ public class ITServersManagerShould {
             }
         } finally {
             assertTrue(killAllDockerServers().length > 0, "Expected (at least) one server to be closed; got 0 instead"); // TODO close server without killing docker
+            // TODO clear folder
         }
     }
 

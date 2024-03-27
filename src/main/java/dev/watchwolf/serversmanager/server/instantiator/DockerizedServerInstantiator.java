@@ -99,15 +99,17 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
     public static final int BASE_PORT = 8001;
 
     private final ArrayList<DockerContainerStoppedObserver> serverListeners = new ArrayList<>();
+    private static final Logger logger = LogManager.getLogger(DockerizedServerInstantiator.class.getName());
 
     private static String getDockerCommand(String jarName, String ram) {
+        logger.traceEntry(null, jarName, ram);
         String ramParam = "-XX:MaxRAMFraction=1"; // unlimited memory
         if (ram != null) {
             // RAM limit specified
             // TODO `java_ram_param="-Xmx${memory^^}"`
         }
 
-        return "java " + ramParam + " -jar " + jarName + " nogui"; // run the server
+        return logger.traceExit("java " + ramParam + " -jar " + jarName + " nogui"); // run the server
     }
 
     /**
@@ -115,6 +117,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * @return Next port that ServersManager will have to use
      */
     private static synchronized int getNextServerPort() {
+        logger.traceEntry();
         // get the server containers running
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
@@ -137,10 +140,11 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         // get the first free port
         int freePort = BASE_PORT;
         while (usedPorts.contains(freePort) || usedPorts.contains(freePort+1)) freePort += 2; // we need 2 consecutive ports
-        return freePort;
+        return logger.traceExit(freePort);
     }
 
     private static String getStartedServerIp(String containerId) {
+        logger.traceEntry(null, containerId);
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
 
@@ -164,7 +168,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         if (containerPorts.size() != 2) throw new IllegalArgumentException("Expecting 2 ports on docker container " + containerId + "; got " + ports.toString() + " instead");
         if (ports.get(0) != ports.get(1)-1) System.err.println("Expecting docker container ports to be consecutive; got " + ports.toString() + " instead");
 
-        return "127.0.0.1:" + ports.get(0);
+        return logger.traceExit("127.0.0.1:" + ports.get(0));
     }
 
     /**
@@ -174,15 +178,20 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * @param callback Object with the callback method to call
      */
     private static void attachStdio(DockerClient dockerClient, CreateContainerResponse container, ResultCallback<Frame> callback) {
+        logger.traceEntry(null, dockerClient, container, callback);
         dockerClient.logContainerCmd(container.getId())
                 .withStdOut(true)
                 .withStdErr(true)
                 .withFollowStream(true)
                 .exec(callback);
+        logger.traceExit();
     }
 
     @Override
     public Server startServer(Path folderLocation, String entrypoint, int javaVersion) {
+        synchronized (DockerizedServerInstantiator.class) {
+            logger.traceEntry(null, folderLocation, entrypoint, javaVersion);
+        }
         final String serverId = "MC_Server-" + ServerRequirements.getHashFromServerPath(folderLocation.toString());
         String dockerCmd = getDockerCommand(entrypoint, null); // TODO specify ram
 
@@ -201,13 +210,13 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
                     .withName(serverId)
                     .withHostConfig(
                             new HostConfig().withPortBindings(
-                                    PortBinding.parse("25565:" + port + "/tcp"),
-                                    PortBinding.parse("25565:" + port + "/udp"),
-                                    PortBinding.parse("25566:" + socketPort)
+                                    PortBinding.parse(port + ":25565/tcp"),
+                                    PortBinding.parse(port + ":25565/udp"),
+                                    PortBinding.parse(socketPort + ":25566")
                             ))
-                    .withExposedPorts(new ExposedPort(port, InternetProtocol.TCP),
-                            new ExposedPort(port, InternetProtocol.UDP),
-                            new ExposedPort(socketPort, InternetProtocol.TCP))
+                    .withExposedPorts(new ExposedPort(25565, InternetProtocol.TCP),
+                            new ExposedPort(25565, InternetProtocol.UDP),
+                            new ExposedPort(25566, InternetProtocol.TCP))
                     .withBinds(Bind.parse(folderLocation.toString() + ":/server"))
                     .withWorkingDir("/server")
                     .withEntrypoint("/bin/sh", "-c")
@@ -231,10 +240,15 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             observer.start();
         }
 
-        return server.get();
+        synchronized (DockerizedServerInstantiator.class) {
+            return logger.traceExit(server.get());
+        }
     }
 
     public void closeAllLaunchedServers() {
+        synchronized (DockerizedServerInstantiator.class) {
+            logger.traceEntry();
+        }
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
 
@@ -259,10 +273,16 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             } catch (Exception ignore) {}
             dockerClient.removeContainerCmd(container.getId()).exec();
         }
+        synchronized (DockerizedServerInstantiator.class) {
+            logger.traceExit();
+        }
     }
 
     @Override
     public void close() {
+        synchronized (DockerizedServerInstantiator.class) {
+            logger.traceEntry();
+        }
         this.closeAllLaunchedServers(); // this will cause all the threads to exit
 
         // wait for all the threads to stop
@@ -270,6 +290,9 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             try {
                 observer.join();
             } catch (InterruptedException ignore) {}
+        }
+        synchronized (DockerizedServerInstantiator.class) {
+            logger.traceExit();
         }
     }
 }

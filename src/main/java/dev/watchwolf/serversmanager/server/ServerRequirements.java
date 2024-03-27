@@ -10,8 +10,10 @@ import dev.watchwolf.serversmanager.server.plugins.PluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.ServersManagerPluginDeserializer;
 import dev.watchwolf.serversmanager.server.plugins.UnableToAchievePluginException;
 import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.io.File;
 import java.io.IOException;
@@ -164,50 +166,68 @@ settings:
     }
 
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
+        logger.traceEntry(null, serverType, serverVersion, plugins, worldType, maps, configFiles, jarName);
         if (!ServerRequirements.serverFolderInfoLogged) ServerRequirements.logServerFolderInfo();
 
-        Path serverFolder = ServerRequirements.createServerFolder();
+        try (final CloseableThreadContext.Instance ctc = CloseableThreadContext.push(serverType).push(serverVersion)) {
+            Path serverFolder = ServerRequirements.createServerFolder();
+            logger.info("Server folder at " + serverFolder.toString());
 
-        // copy server (type&version)
-        ServerRequirements.copyServerJar(serverType, serverVersion, serverFolder, jarName);
-        generateEulaFile(serverFolder);
-        setTimingsSettings(serverFolder);
-        setServerProperties(serverFolder, 25565, worldType);
-        setWatchWolfServerProperties(serverFolder, "" /* TODO unused by WW-Server (for now) */, 25566 /* TODO don't depend on DockerizedServerInstantiator#startServer ports */, System.getenv("MACHINE_IP") + ":8000" /* deprecated */, "" /* deprecated */);
+            // copy server (type&version)
+            logger.debug("Preparing folder...");
+            logger.debug("Copying server jar...");
+            ServerRequirements.copyServerJar(serverType, serverVersion, serverFolder, jarName);
+            logger.debug("Generating eula file...");
+            generateEulaFile(serverFolder);
+            logger.debug("Generating timings configuration...");
+            setTimingsSettings(serverFolder);
+            logger.debug("Generating server properties file...");
+            setServerProperties(serverFolder, 25565, worldType);
+            logger.debug("Generating WW-server config file...");
+            setWatchWolfServerProperties(serverFolder, "127.0.0.1" /* TODO unused by WW-Server (for now) */, 25566 /* TODO don't depend on DockerizedServerInstantiator#startServer ports */, System.getenv("MACHINE_IP").trim() + ":8000" /* deprecated */, "deprecated" /* deprecated */);
 
-        // export worlds
-        for (ConfigFile map : maps) {
-            if (!(map instanceof ZipFile)) throw new IllegalArgumentException("All worlds must be zips; got `." + map.getExtension() + "` instead.");
-            ((ZipFile)map).exportToDirectory(serverFolder);
-        }
+            // export worlds
+            logger.debug("Exporting worlds...");
+            for (ConfigFile map : maps) {
+                if (!(map instanceof ZipFile)) throw new IllegalArgumentException("All worlds must be zips; got `." + map.getExtension() + "` instead.");
+                ((ZipFile)map).exportToDirectory(serverFolder);
+            }
 
-        // export plugins
-        String basePluginsFolder = serverFolder + "/plugins";
-        List<Plugin> pluginsToAdd = new ArrayList<>(plugins);
-        pluginsToAdd.add(new UsualPlugin("WatchWolf")); // always add WW-Server
-        for (Plugin plugin : deserializer.filterByVersion(pluginsToAdd, serverVersion)) {
+            // export plugins
+            logger.debug("Exporting plugins...");
+            String basePluginsFolder = serverFolder + "/plugins";
+            List<Plugin> pluginsToAdd = new ArrayList<>(plugins);
+            pluginsToAdd.add(new UsualPlugin("WatchWolf")); // always add WW-Server
             try {
-                deserializer.deserialize(plugin, new File(basePluginsFolder));
-            }  catch (Exception ex) {
-                System.err.println("Couldn't get plugin " + plugin.toString());
-                // keep going; if the plugin was required WW-Tester will stop
+                for (Plugin plugin : deserializer.filterByVersion(pluginsToAdd, serverVersion)) {
+                    try {
+                        logger.debug("Deserializing " + plugin + "...");
+                        deserializer.deserialize(plugin, new File(basePluginsFolder));
+                    } catch (Exception ex) {
+                        logger.warn("Couldn't get plugin " + plugin.toString());
+                        // keep going; if the plugin was required WW-Tester will stop
+                    }
+                }
+            } catch (Exception ex) {
+                logger.error("Major error while trying to export plugins", ex);
             }
-        }
 
-        // export config files
-        for (ConfigFile configFile : configFiles) {
-            if (configFile.getOffsetPath().contains("../") || configFile.getOffsetPath().startsWith("/")) {
-                System.err.println("Got file with illegal offset (" + configFile.getOffsetPath() + "); will ignore.");
-                continue;
+            // export config files
+            logger.debug("Exporting custom config files...");
+            for (ConfigFile configFile : configFiles) {
+                if (configFile.getOffsetPath().contains("../") || configFile.getOffsetPath().startsWith("/")) {
+                    System.err.println("Got file with illegal offset (" + configFile.getOffsetPath() + "); will ignore.");
+                    continue;
+                }
+
+                if (configFile instanceof ZipFile) ((ZipFile)configFile).exportToDirectory(Path.of(basePluginsFolder + configFile.getOffsetPath()));
+                else configFile.saveToFile(new File(basePluginsFolder + "/" + configFile.getOffsetPath() + configFile.getName() + "." + configFile.getExtension()));
             }
+            logger.debug("Done preparing server folder");
 
-            if (configFile instanceof ZipFile) ((ZipFile)configFile).exportToDirectory(Path.of(basePluginsFolder + configFile.getOffsetPath()));
-            else configFile.saveToFile(new File(basePluginsFolder + "/" + configFile.getOffsetPath() + configFile.getName() + "." + configFile.getExtension()));
+            // we must return the global folder
+            return logger.traceExit(getGlobalServerFolder(serverFolder.toString()));
         }
-        // TODO add WW-Server config file
-
-        // we must return the global folder
-        return getGlobalServerFolder(serverFolder.toString());
     }
 
     public static String getHashFromServerPath(String path) {

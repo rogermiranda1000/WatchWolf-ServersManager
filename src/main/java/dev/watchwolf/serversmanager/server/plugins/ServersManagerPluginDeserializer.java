@@ -1,6 +1,6 @@
 package dev.watchwolf.serversmanager.server.plugins;
 
-import dev.watchwolf.core.entities.Version;
+import dev.watchwolf.core.utils.Version;
 import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.*;
 import org.apache.logging.log4j.LogManager;
@@ -27,28 +27,36 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
     /**
      * Places a plugin into a folder
      * @param plugin Plugin to deserialize
-     * @param outDirectory Target directory
+     * @param outDirectory Plugins directory
      */
     @Override
     public void deserialize(Plugin plugin, File outDirectory) throws IOException,UnableToAchievePluginException {
         logger.traceEntry(null, plugin, outDirectory);
+
         if (plugin instanceof FilePlugin) {
             ConfigFile filePlugin = ((FilePlugin)plugin).getFile();
             logger.debug("Got FilePlugin: " + filePlugin.toString());
             filePlugin.saveToFile(new File(outDirectory, filePlugin.getName() + "." + filePlugin.getExtension()));
         }
         else if (plugin instanceof UsualPlugin) {
-            UsualPlugin usualPlugin = (UsualPlugin)plugin;
+            final UsualPlugin usualPlugin = (UsualPlugin)plugin;
             logger.debug("Got UsualPlugin: " + usualPlugin.toString());
             if (usualPlugin.getVersion() == null) throw logger.throwing(new IllegalArgumentException("Requested usual plugin " + usualPlugin.getName() + ", but no version given"));
-            // TODO add
+
+            Path usualPluginPath = Files.list(this.getUsualPluginsPath())
+                                            .filter(path -> !Files.isDirectory(path))
+                                            .filter(file -> file.getFileName().toString().startsWith(usualPlugin.getName() + "-" + usualPlugin.getVersion() + "-"))
+                                            .findFirst().orElseThrow(() -> new UnableToAchievePluginException("Expected usual plugin " + usualPlugin.getName() + " to have version " + usualPlugin.getVersion() + "; found nothing instead"));
+            logger.debug("Copying " + usualPluginPath.toString() + " into " + outDirectory + "/" + usualPluginPath.getFileName().toString() + "...");
+            Files.copy(usualPluginPath, outDirectory.toPath().resolve(usualPluginPath.getFileName()));
         }
         else if (plugin instanceof UploadedPlugin) {
             UploadedPlugin uploadedPlugin = (UploadedPlugin)plugin;
             logger.debug("Got UploadedPlugin: " + uploadedPlugin.toString());
-            // TODO
+            logger.error("Download UploadedPlugins is still not implemented on WW-ServersManager"); // TODO
         }
         else throw logger.throwing(new IllegalArgumentException("Couldn't deserialize plugin of type " + plugin.getClass().getName()));
+
         logger.traceExit();
     }
 
@@ -63,7 +71,11 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
         this.logger.traceEntry(null, plugins, targetMcVersion);
         List<Plugin> filteredPlugins = new ArrayList<>();
         for (Plugin plugin : plugins) {
-            if (!(plugin instanceof UsualPlugin)) filteredPlugins.add(plugin); // independent to the MC version
+            if (!(plugin instanceof UsualPlugin)) {
+                // independent to the MC version
+                logger.debug("Plugin " + plugin.toString() + " does not need filtering");
+                filteredPlugins.add(plugin);
+            }
             else {
                 UsualPlugin usualPlugin = (UsualPlugin) plugin;
                 List<Version> compatibleVersions = getCompatibleVersions(usualPlugin.getName(), targetMcVersion);
@@ -78,6 +90,7 @@ public class ServersManagerPluginDeserializer implements PluginDeserializer {
                     // we have to add the version for the `deserialize` method
                     try {
                         Version usualPluginHighestCompatibleVersion = Collections.max(getCompatibleVersions(usualPlugin.getName(), targetMcVersion));
+                        logger.debug("Usual plugin " + usualPlugin.getName() + " will use its larger version, " + usualPluginHighestCompatibleVersion.toString());
                         filteredPlugins.add(new UsualPlugin(usualPlugin.getName(), usualPluginHighestCompatibleVersion.toString(), usualPlugin.isPremium())); // add the plugin with the specific version
                     } catch (NoSuchElementException ignore) {
                         this.logger.warn("Got usual plugin " + usualPlugin.getName() + ", but no compatible version was found for Minecraft " + targetMcVersion + ". Ignoring plugin...");

@@ -18,7 +18,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 
 public class ServersManager implements Closeable {
-    public static final String TARGET_SERVER_JAR = "ServersManager.jar";
+    public static final String TARGET_SERVER_JAR = "server.jar";
 
     private final ServerInstantiator serverInstantiator;
     private final IpManager ipManager;

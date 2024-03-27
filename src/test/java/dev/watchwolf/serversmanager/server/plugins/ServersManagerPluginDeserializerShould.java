@@ -2,7 +2,7 @@ package dev.watchwolf.serversmanager.server.plugins;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import dev.watchwolf.core.entities.Version;
+import dev.watchwolf.core.utils.Version;
 import org.junit.jupiter.api.Test;
 
 import java.io.Closeable;
