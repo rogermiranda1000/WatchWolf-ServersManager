@@ -183,15 +183,16 @@ settings:
 
         // export plugins
         String basePluginsFolder = serverFolder + "/plugins";
-        for (Plugin plugin : plugins) {
+        List<Plugin> pluginsToAdd = new ArrayList<>(plugins);
+        pluginsToAdd.add(new UsualPlugin("WatchWolf")); // always add WW-Server
+        for (Plugin plugin : deserializer.filterByVersion(pluginsToAdd, serverVersion)) {
             try {
                 deserializer.deserialize(plugin, new File(basePluginsFolder));
-            }  catch (UnableToAchievePluginException ex) {
-                System.err.println("Couldn't find plugin " + plugin.toString());
+            }  catch (Exception ex) {
+                System.err.println("Couldn't get plugin " + plugin.toString());
                 // keep going; if the plugin was required WW-Tester will stop
             }
         }
-        deserializer.deserialize(new UsualPlugin("WatchWolf"), new File(basePluginsFolder)); // always add WW
 
         // export config files
         for (ConfigFile configFile : configFiles) {

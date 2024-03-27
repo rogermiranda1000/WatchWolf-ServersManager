@@ -41,14 +41,18 @@ if [ $unit -eq 1 ]; then
     # run unit tests
     if [ ! -z "$test_match" ]; then
         echo "[v] Running filtered tests: $test_match"
-        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17              \
-                        mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                                               \
+        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2                                     \
+                        -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)  \
+                        -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                              \
+                        maven:3.8.3-openjdk-17 mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                        \
                         -Dmaven.test.redirectTestOutputToFile=true -Dtest="$test_match" -X -Dlog4j2.debug --file '/compile'     \
                 2>&1 | tee "$unit_tests_report_path/docker-log.txt" # forward to file
         result=$?
     else
-        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2 maven:3.8.3-openjdk-17              \
-                        mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                                               \
+        docker run -it --rm -v "$base_path":/compile -v "$local_maven_repos_path":/root/.m2                                     \
+                        -e WSL_MODE=$(wsl_mode ; echo $? | grep -c 0) -e MACHINE_IP=$(get_ip) -e PUBLIC_IP=$(curl ifconfig.me)  \
+                        -e PARENT_PWD="$base_path" -e SERVER_PATH_SHIFT=./ci/debug                                              \
+                        maven:3.8.3-openjdk-17 mvn test -DskipTests=false -DskipUTs=false -DskipITs=true                        \
                         -Dmaven.test.redirectTestOutputToFile=true -X -Dlog4j2.debug --file '/compile'                          \
                 2>&1 | tee "$unit_tests_report_path/docker-log.txt" # forward to file
         result=$?

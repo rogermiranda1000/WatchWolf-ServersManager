@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ServerRequirementsShould {
-    public static final String TARGET_SERVER_JAR = "ServersManager.jar";
+    public static final String TARGET_SERVER_JAR = "server.jar";
 
     //  =======================
     //    copyServerJar tests
@@ -372,6 +372,7 @@ public class ServerRequirementsShould {
             Path sourcePath = givenAPathWithOneSpigot1_20ServerAndOnePaper1_20Server(fileSystem),
                     dstPath = givenACreatedDestinyFolder(fileSystem);
             Path expectedJar = dstPath.resolve(TARGET_SERVER_JAR);
+            Path pluginsPath = dstPath.resolve("plugins");
 
             // mocking
             dummyStatic.when(ServerRequirements::createServerFolder)
@@ -385,11 +386,26 @@ public class ServerRequirementsShould {
             ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, maps, configFiles, jarName);
 
             // assert
-            assertTrue(Files.exists(expectedJar));
-            // TODO add verify calls to each of the expected methods to call
+            List<String> foundPlugins = Files.list(pluginsPath)
+                    .filter(file -> !Files.isDirectory(file) && file.getFileName().toString().endsWith(".jar"))
+                    .map(filePath -> filePath.getFileName().toString())
+                    .toList();
+
+            assertTrue(Files.exists(expectedJar)); // the server .jar must be present
+
+            // despites no plugins being sent; WatchWolf-Server should be present
+            assertTrue(foundPlugins.stream().anyMatch(plugin -> plugin.startsWith("WatchWolf")), "Expected WW-Server to be present; got otherwise.\nList of plugins: " + foundPlugins.toString());
+
+            // TODO add verify calls to each of the expected methods to call (eg. "generate eula file", "generate properties file"...)
         } finally {
             clearServerTypesFolder();
         }
+    }
+
+    @Test
+    @Disabled
+    public void prepareAServerFolderWithPlugins() throws Exception {
+        // TODO
     }
 
     @Test
