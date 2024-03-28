@@ -66,7 +66,9 @@ public class ITDockerizedServerInstantiatorShould {
         CreateContainerResponse container = getDockerClient().createContainerCmd("openjdk:8")
                 .withName(serverId)
                 .withEntrypoint("/bin/sh", "-c")
-                .withHostConfig(new HostConfig().withPortBindings(portBindings))
+                .withHostConfig(new HostConfig()
+                        .withPortBindings(portBindings)
+                        .withAutoRemove(true))
                 .withExposedPorts(ports)
                 .withCmd(cmd).exec();
 
@@ -82,10 +84,8 @@ public class ITDockerizedServerInstantiatorShould {
     private static void killContainer(CreateContainerResponse container) {
         System.out.println("Stopping container " + container.getId() + "...");
         try {
-            //getDockerClient().stopContainerCmd(container.getId()).exec();
             getDockerClient().killContainerCmd(container.getId()).exec();
         } catch (Exception ignore) {}
-        getDockerClient().removeContainerCmd(container.getId()).exec();
     }
 
     private static int getNextServerPort() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
@@ -146,10 +146,9 @@ public class ITDockerizedServerInstantiatorShould {
             int portToUse = DEFAULT_PORT+1;
             container = getDockerClient().createContainerCmd("openjdk:8")
                     .withName("my-other-service")
-                    .withHostConfig(
-                            new HostConfig().withPortBindings(
-                                    PortBinding.parse(portToUse + ":" + portToUse + "/tcp")
-                            ))
+                    .withHostConfig(new HostConfig()
+                            .withPortBindings(PortBinding.parse(portToUse + ":" + portToUse + "/tcp"))
+                            .withAutoRemove(true))
                     .withExposedPorts(new ExposedPort(portToUse, InternetProtocol.TCP)) // we'll use the default port
                     .withEntrypoint("/bin/sh", "-c")
                     .withCmd("sleep 20m").exec();

@@ -115,10 +115,8 @@ public class ITServersManagerRPCShould {
             // kill the server
             LOGGER.debug("Stopping container " + container.getId() + "...");
             try {
-                //getDockerClient().stopContainerCmd(container.getId()).exec();
                 getDockerClient().killContainerCmd(container.getId()).exec();
             } catch (Exception ignore) {}
-            getDockerClient().removeContainerCmd(container.getId()).exec();
         }
 
         return LOGGER.traceExit(serverFolderPaths.toArray(new String[0]));

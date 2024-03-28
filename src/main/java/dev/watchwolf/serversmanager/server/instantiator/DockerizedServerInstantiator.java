@@ -15,8 +15,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static dev.watchwolf.serversmanager.server.ServerRequirements.getPrivateServerFolder;
-
 public class DockerizedServerInstantiator implements ServerInstantiator {
     public interface StdioCallback {
         void onLineGot(String line, boolean stderr);
@@ -269,10 +267,8 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
             System.out.println("Stopping container " + container.getId() + "...");
             try {
-                //getDockerClient().stopContainerCmd(container.getId()).exec();
                 dockerClient.killContainerCmd(container.getId()).exec();
             } catch (Exception ignore) {}
-            dockerClient.removeContainerCmd(container.getId()).exec();
         }
         synchronized (DockerizedServerInstantiator.class) {
             logger.traceExit();
