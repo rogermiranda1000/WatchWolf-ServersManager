@@ -55,6 +55,7 @@ public class ServersManager implements Closeable {
         server.subscribeToServerStoppedEvents(() -> {
             // and clear the folder
             System.out.println("Server stopped; clearing folder...");
+            // TODO get logs before deleting everything
             try {
                 ServerRequirements.clearFolder(path);
             } catch (IOException ex) {

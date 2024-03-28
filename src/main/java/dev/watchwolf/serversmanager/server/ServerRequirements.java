@@ -129,31 +129,34 @@ settings:
         return tmpFolderBase + "/" + getHashFromServerPath(localServerFolder);
     }
 
-    public static void logServerFolderInfo() throws IOException {
-        // print all usual plugins got
-        Path usualPluginsPath = deserializer.getUsualPluginsPath();
-        Set<String> usualPlugins = Files.list(usualPluginsPath)
-                .filter(file -> !Files.isDirectory(file))
-                .map(file -> file.getFileName().toString())
-                .filter((name) -> name.endsWith(".jar"))
-                .collect(Collectors.toSet());
-        ServerRequirements.logger.info("Usual plugins: " + usualPlugins.toString());
+    public static void logServerFolderInfo() {
+        try {
+            // print all usual plugins got
+            Path usualPluginsPath = deserializer.getUsualPluginsPath();
+            Set<String> usualPlugins = Files.list(usualPluginsPath)
+                    .filter(file -> !Files.isDirectory(file))
+                    .map(file -> file.getFileName().toString())
+                    .filter((name) -> name.endsWith(".jar"))
+                    .collect(Collectors.toSet());
+            ServerRequirements.logger.info("Usual plugins: " + usualPlugins.toString());
 
-        // print all server types got
-        Map<String, List<String>> serversAvailable = new HashMap<>();
-        for (Path serverType : Files.list(serverTypesFolder).collect(Collectors.toList())) {
-            serversAvailable.put(serverType.getFileName().toString(),
-                    Files.list(serverType)
-                            .map(f -> f.getFileName().toString())
-                            .filter(f -> f.endsWith(".jar")) // only servers
-                            .map(f -> f.substring(0, f.length() - 4)) // remove extension
-                            .collect(Collectors.toList())
-            );
+            // print all server types got
+            Map<String, List<String>> serversAvailable = new HashMap<>();
+            for (Path serverType : Files.list(serverTypesFolder).collect(Collectors.toList())) {
+                serversAvailable.put(serverType.getFileName().toString(),
+                        Files.list(serverType)
+                                .map(f -> f.getFileName().toString())
+                                .filter(f -> f.endsWith(".jar")) // only servers
+                                .map(f -> f.substring(0, f.length() - 4)) // remove extension
+                                .collect(Collectors.toList())
+                );
+            }
+            ServerRequirements.logger.info("Servers available: " + serversAvailable.toString());
+        } catch (IOException ex) {
+            ServerRequirements.logger.error("Couldn't get information about the server folder", ex);
+        } finally {
+            ServerRequirements.serverFolderInfoLogged = true;
         }
-        ServerRequirements.logger.info("Servers available: " + serversAvailable.toString());
-
-        // now we've logged the information
-        ServerRequirements.serverFolderInfoLogged = true;
     }
 
     /**

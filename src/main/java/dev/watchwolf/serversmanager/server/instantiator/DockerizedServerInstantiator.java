@@ -208,16 +208,17 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             // TODO specify max memory
             container = dockerClient.createContainerCmd("openjdk:" + javaVersion)
                     .withName(serverId)
-                    .withHostConfig(
-                            new HostConfig().withPortBindings(
+                    .withHostConfig(new HostConfig()
+                            .withPortBindings(
                                     PortBinding.parse(port + ":25565/tcp"),
                                     PortBinding.parse(port + ":25565/udp"),
                                     PortBinding.parse(socketPort + ":25566")
-                            ))
+                            )
+                            .withAutoRemove(true)
+                            .withBinds(Bind.parse(folderLocation.toString() + ":/server")))
                     .withExposedPorts(new ExposedPort(25565, InternetProtocol.TCP),
                             new ExposedPort(25565, InternetProtocol.UDP),
                             new ExposedPort(25566, InternetProtocol.TCP))
-                    .withBinds(Bind.parse(folderLocation.toString() + ":/server"))
                     .withWorkingDir("/server")
                     .withEntrypoint("/bin/sh", "-c")
                     .withCmd(dockerCmd).exec();

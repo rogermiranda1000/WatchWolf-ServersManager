@@ -410,6 +410,12 @@ public class ServerRequirementsShould {
 
     @Test
     @Disabled
+    public void prepareAServerFolderWithConfigFiles() throws Exception {
+        // TODO
+    }
+
+    @Test
+    @Disabled
     void logAllPluginsAvailable() throws Exception {
         // arrange
         try(FileSystem fs = Jimfs.newFileSystem(Configuration.unix());
